@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -85,7 +86,7 @@ async def create_event(
     run_manager.start(
         run_id,
         luma_url=payload.luma_url,
-        build_client=build_client_for_run,
+        build_client=functools.partial(build_client_for_run, force_refresh=payload.force_refresh),
         agent_model=settings.openai_agent_model,
         max_profiles=payload.max_profiles,
     )

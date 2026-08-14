@@ -86,6 +86,49 @@ def _parse_json_body(body: str) -> dict | None:
     return parsed if isinstance(parsed, dict) else None
 
 
+def _extract_plain_text(value: object) -> str | None:
+    """Best-effort plain text extraction. Luma's description/description_mirror
+    fields are a plain string for some events, and a rich-text document object
+    (Lexical/ProseMirror-style {"type": "doc", "content": [...]}) for others.
+    Walks any "content" lists collecting "text" leaves; never raises."""
+    if isinstance(value, str):
+        return value.strip() or None
+    if not isinstance(value, dict):
+        return None
+
+    parts: list[str] = []
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            text = node.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+            for child in node.get("content") or []:
+                walk(child)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(value)
+    joined = " ".join(p.strip() for p in parts if p.strip())
+    return joined or None
+
+
+def _extract_category_names(categories: object) -> list[str]:
+    """Categories are a list of plain strings for some events, and a list of
+    category objects ({"api_id", "name"/"title", "tint_color", ...}) for
+    others. Extracts a display name from either shape."""
+    names: list[str] = []
+    for item in categories or []:
+        if isinstance(item, str) and item:
+            names.append(item)
+        elif isinstance(item, dict):
+            name = item.get("name") or item.get("title") or item.get("label")
+            if isinstance(name, str) and name:
+                names.append(name)
+    return names
+
+
 def parse_luma_api_payload(slug: str, source_url: str, payload: dict) -> LumaEvent:
     data = payload.get("data", payload)
     event = data.get("event") or {}
@@ -122,7 +165,7 @@ def parse_luma_api_payload(slug: str, source_url: str, payload: dict) -> LumaEve
             LumaPerson(
                 luma_user_api_id=guest.get("api_id"),
                 name=guest.get("name"),
-                bio_short=guest.get("bio_short"),
+                bio_short=_extract_plain_text(guest.get("bio_short")),
                 avatar_url=guest.get("avatar_url"),
                 linkedin_url=li_url,
                 linkedin_company_url=li_company,
@@ -146,7 +189,10 @@ def parse_luma_api_payload(slug: str, source_url: str, payload: dict) -> LumaEve
         source_url=source_url,
         luma_api_id=event.get("api_id"),
         name=event.get("name") or slug,
-        description=data.get("description_mirror") or event.get("description_short"),
+        description=(
+            _extract_plain_text(data.get("description_mirror"))
+            or _extract_plain_text(event.get("description_short"))
+        ),
         cover_url=event.get("cover_url"),
         start_at=event.get("start_at"),
         end_at=event.get("end_at"),
@@ -155,7 +201,7 @@ def parse_luma_api_payload(slug: str, source_url: str, payload: dict) -> LumaEve
         venue=venue,
         guest_count=data.get("guest_count"),
         show_guest_list=bool(event.get("show_guest_list")),
-        categories=list(data.get("categories") or []),
+        categories=_extract_category_names(data.get("categories")),
         people=people,
         ingest_source="luma_api",
         warnings=warnings,

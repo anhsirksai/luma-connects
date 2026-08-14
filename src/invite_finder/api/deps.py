@@ -27,9 +27,11 @@ def get_conn() -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
-def build_client_for_run(conn: sqlite3.Connection, reporter: RunReporterImpl) -> WebDataClient:
+def build_client_for_run(
+    conn: sqlite3.Connection, reporter: RunReporterImpl, *, force_refresh: bool = False
+) -> WebDataClient:
     settings = get_settings()
-    session = CachingSession(conn, offline=settings.invite_offline)
+    session = CachingSession(conn, offline=settings.invite_offline, force_refresh=force_refresh)
     inner = BrightDataClient(settings, session=session)
     return ObservedBrightDataClient(inner, reporter)
 

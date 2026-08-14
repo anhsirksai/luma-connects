@@ -19,7 +19,7 @@ from invite_finder import chat as chat_module  # noqa: E402
 from invite_finder.api import deps  # noqa: E402
 from invite_finder.api.app import app  # noqa: E402
 from invite_finder.chat import PersonFilter, _HighlightBatch, _HighlightItem  # noqa: E402
-from invite_finder.runner import RunManager  # noqa: E402
+from invite_finder.runner import RunManager, RunReporterImpl  # noqa: E402
 from invite_finder.store import event_store, people_store, run_store  # noqa: E402
 from invite_finder.taxonomy import Industry  # noqa: E402
 
@@ -140,6 +140,33 @@ def test_create_event_then_conflict_then_cached(client, monkeypatch) -> None:
     third = client.post("/api/events", json={"luma_url": "https://luma.com/api-test-event"})
     assert third.status_code == 200
     assert third.json()["already_cached"] is True
+
+
+def test_create_event_force_refresh_reaches_the_caching_session(client, monkeypatch) -> None:
+    """The API's force_refresh flag must actually reach CachingSession, not
+    just get stored as run metadata -- otherwise 'force refresh' silently
+    replays stale cached Bright Data responses forever."""
+    make_event("force-refresh-event", name="Force Refresh Event")
+
+    captured: dict = {}
+
+    def fake_start(self, run_id, **kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(RunManager, "start", fake_start)
+
+    response = client.post(
+        "/api/events",
+        json={"luma_url": "https://luma.com/force-refresh-event", "force_refresh": True},
+    )
+    assert response.status_code == 202
+
+    conn = get_conn()
+    try:
+        client_instance = captured["build_client"](conn, RunReporterImpl(conn, 1))
+    finally:
+        conn.close()
+    assert client_instance.inner.session.force_refresh is True
 
 
 def test_get_event_detail_and_people(client) -> None:

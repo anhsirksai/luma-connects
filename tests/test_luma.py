@@ -93,6 +93,71 @@ def test_parse_luma_api_payload_warns_when_no_people() -> None:
     assert any("no hosts or featured guests" in w for w in event.warnings)
 
 
+def test_parse_luma_api_payload_handles_rich_text_description() -> None:
+    """Some events return description/description_mirror as a Lexical/
+    ProseMirror-style rich-text doc object instead of a plain string. This
+    must not raise -- it previously crashed with a pydantic ValidationError
+    and silently degraded the whole event to the JSON-LD fallback tier."""
+    payload = {
+        "data": {
+            "event": {"api_id": "evt-rich", "name": "Rich Text Event"},
+            "description_mirror": {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {"type": "text", "text": "Join us for a deep dive."},
+                            {"type": "text", "text": " Bring a laptop."},
+                        ],
+                    }
+                ],
+            },
+            "hosts": [],
+            "featured_guests": [],
+        }
+    }
+    event = parse_luma_api_payload("rich-text-event", "https://luma.com/rich-text-event", payload)
+    assert event.description == "Join us for a deep dive. Bring a laptop."
+
+
+def test_parse_luma_api_payload_handles_object_categories() -> None:
+    """Some events return categories as a list of category objects
+    ({api_id, name, tint_color, ...}) instead of plain strings."""
+    payload = {
+        "data": {
+            "event": {"api_id": "evt-cat", "name": "Categorized Event"},
+            "categories": [
+                {"api_id": "cat-ai", "name": "AI", "tint_color": "#dd7aa4"},
+                {"api_id": "cat-startups", "title": "Startups", "tint_color": "#4a90d9"},
+                "Plain String Category",
+            ],
+            "hosts": [],
+            "featured_guests": [],
+        }
+    }
+    event = parse_luma_api_payload("categorized-event", "https://luma.com/categorized-event", payload)
+    assert event.categories == ["AI", "Startups", "Plain String Category"]
+
+
+def test_parse_luma_api_payload_handles_rich_text_bio() -> None:
+    payload = {
+        "data": {
+            "event": {"api_id": "evt-bio", "name": "Bio Event"},
+            "hosts": [],
+            "featured_guests": [
+                {
+                    "api_id": "usr-1",
+                    "name": "Jamie Rivers",
+                    "bio_short": {"type": "doc", "content": [{"type": "text", "text": "Investor."}]},
+                }
+            ],
+        }
+    }
+    event = parse_luma_api_payload("bio-event", "https://luma.com/bio-event", payload)
+    assert event.people[0].bio_short == "Investor."
+
+
 def test_parse_luma_jsonld_fallback() -> None:
     html = """
     <html><head>
