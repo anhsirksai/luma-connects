@@ -73,6 +73,24 @@ npm run dev
 Open [http://localhost:3000/events](http://localhost:3000/events), paste a
 Luma event link, and open the event once analysis finishes.
 
+### Re-analyzing an event (force refresh)
+
+Submitting the same Luma URL again from the UI is a no-op if the event was
+already analyzed — it just opens the existing result. To force a fresh run
+(e.g. after a bug fix, or to pick up new Bright Data / OpenAI credentials),
+call the API directly with `force_refresh: true`:
+
+```bash
+curl -X POST http://localhost:8000/api/events \
+  -H 'content-type: application/json' \
+  -d '{"luma_url": "https://luma.com/<slug>", "force_refresh": true}'
+```
+
+This re-runs the full pipeline and bypasses the Bright Data response cache
+for that event, so it may issue new SERP/profile-fetch requests (spend) even
+if the Luma event fetch itself replays from cache. There's no button for
+this in the UI yet.
+
 Full setup, environment variable reference, testing, and Fly.io deployment
 instructions are in [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 

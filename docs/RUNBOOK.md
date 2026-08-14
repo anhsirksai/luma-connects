@@ -110,6 +110,36 @@ request that's already been made. Cost only grows with the number of
 *distinct* Luma URLs you submit, and each run's `--max-profiles` /
 `--max-serp-queries` budget (set per-request, defaults are conservative).
 
+### Force-refreshing an already-analyzed event
+
+`POST /api/events` with the same `luma_url` a second time is a no-op by
+default — `routes_events.py` sees the event already exists and returns the
+cached result (`200`, `already_cached: true`) without touching the pipeline
+at all. To force a real re-run:
+
+```bash
+curl -X POST http://localhost:8000/api/events \
+  -H 'content-type: application/json' \
+  -d '{"luma_url": "https://luma.com/<slug>", "force_refresh": true}'
+```
+
+`force_refresh` flows through `routes_events.py` -> `build_client_for_run()`
+(via `functools.partial`, see `api/deps.py`) -> `CachingSession(...,
+force_refresh=True)`. Per `cache.py`, that means every Bright Data call in
+the run **bypasses the cache read but still writes** its result — so the
+Luma event fetch, every SERP query, and every profile-page fetch in that run
+get fresh responses, each of which also refreshes that fingerprint's cached
+copy. Expect real Bright Data (and OpenAI, for classification/discovery)
+spend proportional to the run's budgets, not just a cache-bust of one URL.
+
+There's no UI control for this yet — the "add event" form in
+`invite_viewer/app/components/events/AddEventForm.tsx` always sends
+`force_refresh: false` implicitly (the default in `lib/api.ts`'s
+`startRun()`). Use cases: picking up a parser/classification bug fix on an
+event analyzed before the fix, or getting current data for an event whose
+Bright Data cache entries (Luma: 6h, SERP/profiles: 30d — see
+`cache.TTL_BY_KIND`) haven't expired but you want anyway.
+
 ## Environment variables
 
 | Variable | Required | Purpose |
