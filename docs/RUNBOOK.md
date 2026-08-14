@@ -97,8 +97,7 @@ confirmed guests remain visible on the event page (nothing is lost).
 ### Live mode (spends Bright Data + OpenAI credits)
 
 ```bash
-# terminal 1 — backend, reading real credentials from .env
-set -a && source .env && set +a
+# terminal 1 — backend; Settings.from_env() loads .env automatically
 .venv/bin/uvicorn invite_finder.api.app:app --port 8000
 
 # terminal 2 — frontend (same as above)
@@ -179,8 +178,14 @@ make that migration straightforward later).
 - **`CacheMiss` (503) in offline mode** — the request has never been made
   before; either seed the cache (see above) or drop `INVITE_OFFLINE`.
 - **Chat/classification fails with "Missing credentials"** — no
-  `OPENAI_API_KEY`. Luma ingestion and confirmed-guest linking still succeed
-  independently; only SERP discovery, classification, and chat need OpenAI.
+  `OPENAI_API_KEY` in the backend's process environment. `Settings.from_env()`
+  loads `.env` automatically (searching upward from the current working
+  directory), so this usually means either the key is missing from `.env`,
+  or you started uvicorn from outside the repo (no `.env` found on the
+  search path). It's safe to set `OPENAI_API_KEY` directly in the shell too
+  if you'd rather not rely on `.env` discovery. Luma ingestion and
+  confirmed-guest linking still succeed independently either way; only SERP
+  discovery, classification, and chat need OpenAI.
 - **`sqlite3.ProgrammingError: SQLite objects created in a thread...`** —
   only relevant if you're editing `db.py`: connections are opened with
   `check_same_thread=False` deliberately, because FastAPI can resolve a sync

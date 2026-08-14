@@ -19,14 +19,6 @@ from invite_finder.brightdata import BrightDataClient
 from invite_finder.config import Settings
 
 
-def _load_dotenv() -> None:
-    try:
-        from dotenv import load_dotenv
-    except ImportError:
-        return
-    load_dotenv()
-
-
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Find public LinkedIn profiles for an event and city."
@@ -128,7 +120,6 @@ async def run(args: argparse.Namespace) -> str:
 
 
 def main() -> None:
-    _load_dotenv()
     args = _parse_args()
     output = asyncio.run(run(args))
 

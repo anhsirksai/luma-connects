@@ -8,6 +8,18 @@ class ConfigError(RuntimeError):
     """Raised when required runtime configuration is missing."""
 
 
+def load_dotenv_if_available() -> None:
+    """Loads a .env file from the current working directory upward, if one
+    exists and python-dotenv is installed. Never overrides variables already
+    present in the environment. Called by Settings.from_env() so every entry
+    point (CLI, API server) picks up .env without having to remember to."""
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    load_dotenv()
+
+
 def _required_env(name: str) -> str:
     value = os.getenv(name)
     if not value:
@@ -47,6 +59,7 @@ class Settings:
 
     @classmethod
     def from_env(cls, offline: bool | None = None) -> "Settings":
+        load_dotenv_if_available()
         is_offline = _bool_env("INVITE_OFFLINE", False) if offline is None else offline
 
         if is_offline:

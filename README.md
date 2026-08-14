@@ -51,10 +51,9 @@ Fill in `.env`:
 
 The Bright Data REST APIs use `Authorization: Bearer <api key>` and the shared request endpoint `https://api.brightdata.com/request`. SERP requests send a Google search URL through a SERP zone; Web Unlocker requests send the target event or profile URL through a Web Unlocker zone.
 
-Then start the API:
+Then start the API (it loads `.env` automatically):
 
 ```bash
-set -a && source .env && set +a
 .venv/bin/uvicorn invite_finder.api.app:app --port 8000
 ```
 
