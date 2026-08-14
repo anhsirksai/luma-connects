@@ -60,11 +60,11 @@ already seen — everything runs against `http_cache` only.
 ```bash
 # terminal 1 — backend
 INVITE_OFFLINE=1 BRIGHTDATA_API_KEY=x BRIGHTDATA_SERP_ZONE=x BRIGHTDATA_UNLOCKER_ZONE=x \
-  .venv/bin/uvicorn invite_finder.api.app:app --port 8123 --reload
+  .venv/bin/uvicorn invite_finder.api.app:app --port 8000 --reload
 
 # terminal 2 — frontend
 cd invite_viewer
-INVITE_API_BASE_URL=http://localhost:8123 NEXT_PUBLIC_INVITE_API_BASE_URL=http://localhost:8123 \
+INVITE_API_BASE_URL=http://localhost:8000 NEXT_PUBLIC_INVITE_API_BASE_URL=http://localhost:8000 \
   npm run dev
 ```
 
@@ -99,7 +99,7 @@ confirmed guests remain visible on the event page (nothing is lost).
 ```bash
 # terminal 1 — backend, reading real credentials from .env
 set -a && source .env && set +a
-.venv/bin/uvicorn invite_finder.api.app:app --port 8123
+.venv/bin/uvicorn invite_finder.api.app:app --port 8000
 
 # terminal 2 — frontend (same as above)
 cd invite_viewer && npm run dev
@@ -189,3 +189,10 @@ make that migration straightforward later).
 - **A run is stuck "running" after a crash/restart** — the API's startup
   lifespan calls `run_store.reap_stuck_runs()`, which marks any run still
   `queued`/`running` at boot as `failed`. This is automatic; no action needed.
+- **"Could not reach the Luma Connects API at http://localhost:XXXX"** — the
+  frontend's `INVITE_API_BASE_URL`/`NEXT_PUBLIC_INVITE_API_BASE_URL` don't
+  point at the port the backend is actually listening on. If you started the
+  backend with a custom `--port`, update `invite_viewer/.env.local` to match
+  (not just `.env.local.example`) and restart `npm run dev` — Next.js reads
+  `NEXT_PUBLIC_*` vars at build/start time, so editing `.env.local` alone
+  without restarting the dev server won't take effect.

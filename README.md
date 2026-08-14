@@ -55,7 +55,7 @@ Then start the API:
 
 ```bash
 set -a && source .env && set +a
-.venv/bin/uvicorn invite_finder.api.app:app --port 8123
+.venv/bin/uvicorn invite_finder.api.app:app --port 8000
 ```
 
 No Bright Data or OpenAI credentials yet? Run it offline instead — see
@@ -67,7 +67,7 @@ mode that costs nothing.
 ```bash
 cd invite_viewer
 npm install
-cp .env.local.example .env.local   # points at http://localhost:8123 by default
+cp .env.local.example .env.local   # points at http://localhost:8000 by default
 npm run dev
 ```
 
