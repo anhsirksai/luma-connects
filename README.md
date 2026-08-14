@@ -22,7 +22,18 @@ Under the hood, the discovery agent:
 
 Bright Data does not have a product named "Locker" in the current docs. This project uses **Web Unlocker / Unlocker API**, plus **SERP API**.
 
-## Setup
+## Screenshot
+
+![Luma Connects event detail: room snapshot and chat](docs/screenshot.png)
+
+## Web app
+
+The full product is two services that run together: a FastAPI backend
+(`src/invite_finder/`) and a Next.js frontend (`invite_viewer/`). Paste a
+Luma event link into the frontend, and it drives the backend to fetch the
+event, classify who's likely attending, and answer chat questions about them.
+
+### Backend
 
 ```bash
 python3 -m venv .venv
@@ -40,7 +51,36 @@ Fill in `.env`:
 
 The Bright Data REST APIs use `Authorization: Bearer <api key>` and the shared request endpoint `https://api.brightdata.com/request`. SERP requests send a Google search URL through a SERP zone; Web Unlocker requests send the target event or profile URL through a Web Unlocker zone.
 
-## Run
+Then start the API:
+
+```bash
+set -a && source .env && set +a
+.venv/bin/uvicorn invite_finder.api.app:app --port 8123
+```
+
+No Bright Data or OpenAI credentials yet? Run it offline instead — see
+[`docs/RUNBOOK.md`](docs/RUNBOOK.md#running-locally) for cache-seeded demo
+mode that costs nothing.
+
+### Frontend
+
+```bash
+cd invite_viewer
+npm install
+cp .env.local.example .env.local   # points at http://localhost:8123 by default
+npm run dev
+```
+
+Open [http://localhost:3000/events](http://localhost:3000/events), paste a
+Luma event link, and open the event once analysis finishes.
+
+Full setup, environment variable reference, testing, and Fly.io deployment
+instructions are in [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
+
+## Command-line tool
+
+The `invite-finder` CLI drives the same public-web discovery agent
+standalone, writing a JSON report instead of talking to the API/frontend:
 
 ```bash
 invite-finder \
