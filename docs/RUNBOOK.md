@@ -98,7 +98,7 @@ confirmed guests remain visible on the event page (nothing is lost).
 
 ```bash
 # terminal 1 — backend; Settings.from_env() loads .env automatically
-.venv/bin/uvicorn invite_finder.api.app:app --port 8000
+.venv/bin/uvicorn invite_finder.api.app:app --port 8000 --reload
 
 # terminal 2 — frontend (same as above)
 cd invite_viewer && npm run dev

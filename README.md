@@ -54,7 +54,7 @@ The Bright Data REST APIs use `Authorization: Bearer <api key>` and the shared r
 Then start the API (it loads `.env` automatically):
 
 ```bash
-.venv/bin/uvicorn invite_finder.api.app:app --port 8000
+.venv/bin/uvicorn invite_finder.api.app:app --port 8000 --reload
 ```
 
 No Bright Data or OpenAI credentials yet? Run it offline instead — see

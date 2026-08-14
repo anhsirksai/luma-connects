@@ -63,7 +63,7 @@ calls.
 
 ```bash
 # terminal 1 — backend; Settings.from_env() loads .env automatically
-.venv/bin/uvicorn invite_finder.api.app:app --port 8000
+.venv/bin/uvicorn invite_finder.api.app:app --port 8000 --reload
 
 # terminal 2 — frontend
 cd invite_viewer && npm run dev
