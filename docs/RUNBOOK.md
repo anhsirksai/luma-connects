@@ -1,6 +1,6 @@
 # Runbook
 
-Operational guide for running, testing, and deploying GTM My Events. For the
+Operational guide for running, testing, and deploying Luma Connects. For the
 product/architecture rationale, see [`event-room-snapshot-plan.md`](./event-room-snapshot-plan.md).
 
 ## Architecture at a glance
@@ -143,10 +143,10 @@ and the SERP discovery `Runner.run`) are stubbed at the function boundary in
 Two apps, each with its own `Dockerfile` + `fly.toml`, both sized for Fly's
 free monthly allowance (`shared-cpu-1x` / 256MB, scale-to-zero):
 
-- Backend: `Dockerfile` + `fly.toml` at the repo root (`gtm-my-events-api`),
+- Backend: `Dockerfile` + `fly.toml` at the repo root (`luma-connects-api`),
   with a 1GB volume mounted at `/data` for the SQLite file.
 - Frontend: `invite_viewer/Dockerfile` + `invite_viewer/fly.toml`
-  (`gtm-my-events`), stateless.
+  (`luma-connects`), stateless.
 
 ```bash
 # one-time: Fly requires a payment method on file even for free-tier usage
@@ -154,16 +154,16 @@ free monthly allowance (`shared-cpu-1x` / 256MB, scale-to-zero):
 flyctl auth login
 
 # backend
-flyctl apps create gtm-my-events-api
-flyctl volumes create invite_finder_data --app gtm-my-events-api --region sjc --size 1
-flyctl secrets set --app gtm-my-events-api \
+flyctl apps create luma-connects-api
+flyctl volumes create invite_finder_data --app luma-connects-api --region sjc --size 1
+flyctl secrets set --app luma-connects-api \
   OPENAI_API_KEY=... BRIGHTDATA_API_KEY=... BRIGHTDATA_SERP_ZONE=... BRIGHTDATA_UNLOCKER_ZONE=...
-flyctl deploy --app gtm-my-events-api
+flyctl deploy --app luma-connects-api
 
 # frontend (build args in invite_viewer/fly.toml already point at
-# https://gtm-my-events-api.fly.dev -- edit them first if you used different app names)
-flyctl apps create gtm-my-events
-cd invite_viewer && flyctl deploy --app gtm-my-events
+# https://luma-connects-api.fly.dev -- edit them first if you used different app names)
+flyctl apps create luma-connects
+cd invite_viewer && flyctl deploy --app luma-connects
 ```
 
 `--workers 1` is load-bearing: the run orchestrator uses in-process asyncio

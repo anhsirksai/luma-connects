@@ -46,7 +46,7 @@ async function apiFetch(path: string, init?: RequestInit): Promise<unknown> {
     throw new ApiError(
       0,
       "network_error",
-      `Could not reach the GTM My Events API at ${apiBase()}. Is the backend running?`,
+      `Could not reach the Luma Connects API at ${apiBase()}. Is the backend running?`,
     );
   }
 

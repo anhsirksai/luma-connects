@@ -50,7 +50,7 @@ def create_app() -> FastAPI:
             conn.close()
         yield
 
-    app = FastAPI(title="GTM My Events API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Luma Connects API", version="0.1.0", lifespan=lifespan)
 
     origins = [o.strip() for o in settings.invite_cors_origins.split(",") if o.strip()]
     app.add_middleware(

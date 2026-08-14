@@ -2,11 +2,18 @@
   <img src="https://brightdata.com/wp-content/themes/brightdata/assets/images/favicon.png" alt="Bright Data logo" width="96" />
 </p>
 
-# GTM-For-Events
+# Luma Connects
 
-GTM-For-Events is a useful event research and invite prospecting tool that utilizes Bright Data for accessing the public web. It combines Bright Data Web Unlocker and SERP API with a Python OpenAI Agents SDK workflow to research public event pages, discover relevant public profiles, gather evidence, and prepare a reviewable invite shortlist.
+Luma Connects is an event intelligence tool: paste a Luma event link and it
+uses Bright Data to research the event and the public web, classifies who's
+likely to be in the room, and lets you ask a chat assistant natural-language
+questions ("show me potential VCs") to get back LinkedIn-linked person cards.
+It combines Bright Data Web Unlocker and SERP API with a Python OpenAI Agents
+SDK workflow, a FastAPI service, and a Next.js frontend
+(`invite_viewer/`) -- see [`docs/RUNBOOK.md`](docs/RUNBOOK.md) for how to run
+the full app.
 
-The tool:
+Under the hood, the discovery agent:
 
 1. Fetches a public event page, such as `https://luma.com/vla-night-panel`, through Bright Data Web Unlocker.
 2. Uses Bright Data SERP API to search Google for public LinkedIn profile URLs in a target city.

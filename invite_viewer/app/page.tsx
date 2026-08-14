@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "GTM My Events | Bright Data Agent",
+  title: "Luma Connects | Bright Data Agent",
   description:
     "Learn how the Bright Data invite agent turns public web signals into event-ready prospect reports and a review dashboard.",
 };
@@ -164,7 +164,7 @@ function Hero() {
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#3d7ffc] text-sm font-semibold">
               BD
             </span>
-            <span className="text-base font-semibold">GTM My Events</span>
+            <span className="text-base font-semibold">Luma Connects</span>
           </Link>
 
           <nav className="flex items-center gap-2 text-sm font-semibold text-white/80">
@@ -192,7 +192,7 @@ function Hero() {
               Bright Data invite agent
             </p>
             <h1 className="mt-4 text-5xl font-semibold leading-[1.02] md:text-7xl">
-              GTM My Events
+              Luma Connects
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-white/82 md:text-xl">
               An agent and web app for turning public web signals into

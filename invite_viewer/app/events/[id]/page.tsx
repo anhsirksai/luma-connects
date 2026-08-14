@@ -32,7 +32,7 @@ export default async function EventDetailPage({
           <div className="mt-6 rounded-xl border border-[#f3c6c2] bg-[#fdf1f0] p-6 text-sm text-[#8a2f27]">
             {error instanceof ApiError
               ? error.message
-              : "Could not load this event from the GTM My Events API."}
+              : "Could not load this event from the Luma Connects API."}
           </div>
         </div>
       </main>

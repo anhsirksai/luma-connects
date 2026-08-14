@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "GTM My Events by Bright Data",
+  title: "Luma Connects by Bright Data",
   description:
     "A Bright Data example for GTM teams building event invite lists from public web data reports.",
 };

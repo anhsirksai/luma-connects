@@ -31,7 +31,7 @@ export default async function EventsPage({
     loadError =
       error instanceof ApiError
         ? error.message
-        : "Could not load events from the GTM My Events API.";
+        : "Could not load events from the Luma Connects API.";
   }
 
   return (
@@ -42,7 +42,7 @@ export default async function EventsPage({
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#3d7ffc] text-sm font-semibold text-white">
               BD
             </span>
-            <span className="text-base font-semibold text-[#091b36]">GTM My Events</span>
+            <span className="text-base font-semibold text-[#091b36]">Luma Connects</span>
           </Link>
         </header>
 

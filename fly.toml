@@ -1,14 +1,14 @@
-# Fly.io app config for the invite-finder FastAPI service.
+# Fly.io app config for the Luma Connects FastAPI service.
 # Sized to stay inside Fly's free monthly allowances: shared-cpu-1x/256MB,
 # scale-to-zero when idle, and a single small persistent volume for SQLite.
-app = "gtm-my-events-api"
+app = "luma-connects-api"
 primary_region = "sjc"
 
 [build]
 
 [env]
   INVITE_DB_PATH = "/data/invite_finder.db"
-  INVITE_CORS_ORIGINS = "https://gtm-my-events.fly.dev"
+  INVITE_CORS_ORIGINS = "https://luma-connects.fly.dev"
 
 [[mounts]]
   source = "invite_finder_data"

@@ -1,38 +1,22 @@
-# GTM My Events by Bright Data
+# Luma Connects (frontend)
 
-A Bright Data example app for GTM teams that need to turn event-specific public web research into prioritized invite lists.
+Next.js app for Luma Connects. Talks to the FastAPI backend in `src/invite_finder/api/` over HTTP -- see [`../docs/RUNBOOK.md`](../docs/RUNBOOK.md) for how to run both services together.
 
-## Data
+## Routes
 
-On load, the app reads report JSON files from:
-
-```txt
-../reports/*.json
-```
-
-It also supports importing one or more report JSON files from the browser with the `Import report JSON` control. Imported reports are kept in the current browser session.
-
-Expected report fields:
-
-- `event_url`
-- `city`
-- `event_summary`
-- `audience_hypothesis`
-- `search_queries_used`
-- `candidates`
-- `caveats`
-
-Candidate records can include `name`, `linkedin_url`, `headline`, `company`, `city_signal`, `relevance_score`, `relevance_rationale`, `evidence`, and `source_queries`.
+- `/` -- marketing landing page
+- `/events` -- event picker: date navigator, event cards, "add an event from Luma" form
+- `/events/[id]` -- event detail: Room Snapshot breakdown, live run progress, and the "Super Connector" chat panel
 
 ## Run
 
 ```bash
+npm install
+cp .env.local.example .env.local   # point at your running backend
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
-The landing page explains the agent workflow, and the report dashboard is at
-[http://localhost:3000/dashboard](http://localhost:3000/dashboard).
 
 ## Check
 
