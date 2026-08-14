@@ -7,9 +7,9 @@ from urllib.parse import urlsplit, urlunsplit
 
 from agents import Agent, RunContextWrapper, function_tool
 
-from invite_finder.brightdata import BrightDataClient
 from invite_finder.event import extract_event_page_context
 from invite_finder.models import ProfileSearchReport
+from invite_finder.protocols import WebDataClient
 
 
 LINKEDIN_PROFILE_RE = re.compile(r"https?://([a-z]{2,3}\.)?linkedin\.com/in/[^/?#\s]+")
@@ -23,7 +23,7 @@ SAN_FRANCISCO_ALIASES = (
 
 @dataclass
 class LeadFinderContext:
-    brightdata: BrightDataClient
+    brightdata: WebDataClient
     city: str
     max_profiles: int = 20
     max_serp_queries: int = 5
@@ -145,6 +145,76 @@ def build_seed_search_queries(city: str, event_url: str) -> list[str]:
             '(speaker OR panelist OR conference OR meetup)'
         ).format(city=city_group),
     ]
+
+
+TOPIC_STOPWORDS = {
+    "the", "and", "for", "with", "from", "this", "that", "event", "join",
+    "panel", "night", "discussion", "fireside", "your", "will", "have",
+    "about", "into", "over", "more", "than", "what", "when", "where", "come",
+}
+
+
+def _extract_topic_terms(
+    event_name: str, categories: list[str], description: str | None
+) -> list[str]:
+    """Best-effort topic keywords for SERP seeding, derived from the event's
+    own metadata rather than a hardcoded per-URL branch."""
+    terms: list[str] = []
+    seen: set[str] = set()
+
+    def add(term: str) -> None:
+        key = term.strip().lower()
+        if len(key) < 4 or key in TOPIC_STOPWORDS or key in seen:
+            return
+        seen.add(key)
+        terms.append(term.strip())
+
+    for category in categories:
+        add(category)
+
+    cleaned_name = re.sub(r"[\[\]()]", " ", event_name)
+    for word in re.findall(r"[A-Za-z][A-Za-z\-]{3,}", cleaned_name):
+        add(word)
+
+    if description:
+        for word in re.findall(r"[A-Za-z][A-Za-z\-]{3,}", description)[:20]:
+            add(word)
+
+    return terms
+
+
+def build_seed_search_queries_for_event(
+    *,
+    city: str,
+    event_name: str,
+    categories: list[str] | None = None,
+    description: str | None = None,
+) -> list[str]:
+    """Broad-to-specific SERP queries derived from an event's own name,
+    categories, and description, instead of a hardcoded per-URL topic branch."""
+    city_group = google_or_group(city_search_terms(city))
+    topic_terms = _extract_topic_terms(event_name, categories or [], description)
+    topic_group = google_or_group(topic_terms[:6])
+
+    queries: list[str] = []
+    if topic_group:
+        queries.append(f"site:linkedin.com/in/ {city_group} {topic_group}".strip())
+        queries.append(
+            f"site:linkedin.com/in/ {city_group} "
+            f"(founder OR engineer OR researcher OR investor) {topic_group}".strip()
+        )
+    else:
+        queries.append(
+            f"site:linkedin.com/in/ {city_group} "
+            "(founder OR engineer OR researcher OR investor OR operator)"
+        )
+    queries.append(
+        f'site:linkedin.com/in/ {city_group} ("AI" OR startup OR technology OR community)'
+    )
+    queries.append(
+        f"site:linkedin.com/in/ {city_group} (speaker OR panelist OR conference OR meetup)"
+    )
+    return queries
 
 
 def dedupe_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:

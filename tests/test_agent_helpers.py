@@ -71,3 +71,29 @@ def test_seed_queries_for_vla_start_broad_before_exact_vla() -> None:
     assert "robotics" in queries[0]
     assert "VLA" not in queries[0]
     assert "VLA" in queries[-1]
+
+
+def test_build_seed_search_queries_for_event_uses_topics_from_event_metadata() -> None:
+    from invite_finder.agent import build_seed_search_queries_for_event
+
+    queries = build_seed_search_queries_for_event(
+        city="San Francisco",
+        event_name="[Fireside Discussion] From Tokens to Robots",
+        categories=["Robotics", "AI"],
+        description="Join us for an evening exploring vision-language-action models.",
+    )
+
+    assert len(queries) == 4
+    assert all("site:linkedin.com/in/" in q for q in queries)
+    assert any("Robotics" in q or "AI" in q for q in queries)
+    # Stopwords like "from"/"the" should never appear as bare topic terms.
+    assert "OR from OR" not in queries[0]
+
+
+def test_build_seed_search_queries_for_event_falls_back_without_topics() -> None:
+    from invite_finder.agent import build_seed_search_queries_for_event
+
+    queries = build_seed_search_queries_for_event(
+        city="Austin", event_name="TBD", categories=[], description=None
+    )
+    assert "founder OR engineer OR researcher OR investor OR operator" in queries[0]

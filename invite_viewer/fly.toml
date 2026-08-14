@@ -1,0 +1,24 @@
+# Fly.io app config for the GTM My Events Next.js frontend.
+# Sized to stay inside Fly's free monthly allowances: shared-cpu-1x/256MB,
+# scale-to-zero when idle. No volume needed -- this app is stateless.
+app = "gtm-my-events"
+primary_region = "sjc"
+
+[build]
+  [build.args]
+    NEXT_PUBLIC_INVITE_API_BASE_URL = "https://gtm-my-events-api.fly.dev"
+
+[env]
+  INVITE_API_BASE_URL = "https://gtm-my-events-api.fly.dev"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

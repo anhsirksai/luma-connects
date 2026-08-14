@@ -1,0 +1,34 @@
+{
+  "organic": [
+    {
+      "title": "Alex Rivera - Founder & CEO at Nimbus Robotics - LinkedIn",
+      "link": "https://www.linkedin.com/in/alex-rivera-robotics/",
+      "description": "Alex Rivera is the founder and CEO of Nimbus Robotics, building foundation models for warehouse automation. Based in San Francisco Bay Area.",
+      "rank": 1
+    },
+    {
+      "title": "Jordan Kim - Investor, Early-stage robotics and AI - LinkedIn",
+      "link": "https://www.linkedin.com/in/jordan-kim-invests/",
+      "description": "Jordan Kim is a Partner at Ridgeline Ventures, an early-stage VC fund investing in robotics, embodied AI, and foundation models. San Francisco.",
+      "rank": 2
+    },
+    {
+      "title": "Dana Okafor - Senior Software Engineer, Vision Systems - LinkedIn",
+      "link": "https://www.linkedin.com/in/dana-okafor-vision/",
+      "description": "Senior Software Engineer working on computer vision and multimodal foundation models. San Francisco Bay Area.",
+      "rank": 3
+    },
+    {
+      "title": "Priya Natarajan - Robotics Researcher - LinkedIn",
+      "link": "https://www.linkedin.com/in/priya-natarajan-robotics",
+      "description": "Robotics researcher focused on imitation learning and robot learning. San Francisco.",
+      "rank": 4
+    },
+    {
+      "title": "Wei Chen - Director of Business Development, Pharma Partnerships - LinkedIn",
+      "link": "https://www.linkedin.com/in/wei-chen-bd-pharma/",
+      "description": "Director of Business Development at Roche, leading partnerships in computational biology and AI-driven drug discovery. San Francisco Bay Area.",
+      "rank": 5
+    }
+  ]
+}

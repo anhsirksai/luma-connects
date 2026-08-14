@@ -93,9 +93,9 @@ export default function Home() {
             </div>
             <Link
               className="inline-flex w-fit items-center justify-center rounded-lg border border-[#c8d5e3] px-4 py-3 text-sm font-semibold text-[#101820] transition hover:border-[#3d7ffc] hover:text-[#0a3d91]"
-              href="/dashboard"
+              href="/events"
             >
-              Open dashboard
+              Browse events
             </Link>
           </div>
 
@@ -179,9 +179,9 @@ function Hero() {
             </a>
             <Link
               className="rounded-lg bg-white px-4 py-2 text-[#101820] transition hover:bg-[#ffca36]"
-              href="/dashboard"
+              href="/events"
             >
-              Dashboard
+              Browse events
             </Link>
           </nav>
         </header>
@@ -202,9 +202,9 @@ function Hero() {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 className="inline-flex items-center justify-center rounded-lg bg-[#3d7ffc] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#2f6ee8]"
-                href="/dashboard"
+                href="/events"
               >
-                Open dashboard
+                Browse events
               </Link>
               <a
                 className="inline-flex items-center justify-center rounded-lg border border-white/30 px-5 py-3 text-sm font-semibold text-white transition hover:border-white hover:bg-white/10"

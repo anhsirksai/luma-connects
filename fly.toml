@@ -1,0 +1,27 @@
+# Fly.io app config for the invite-finder FastAPI service.
+# Sized to stay inside Fly's free monthly allowances: shared-cpu-1x/256MB,
+# scale-to-zero when idle, and a single small persistent volume for SQLite.
+app = "gtm-my-events-api"
+primary_region = "sjc"
+
+[build]
+
+[env]
+  INVITE_DB_PATH = "/data/invite_finder.db"
+  INVITE_CORS_ORIGINS = "https://gtm-my-events.fly.dev"
+
+[[mounts]]
+  source = "invite_finder_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

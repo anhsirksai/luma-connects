@@ -1,0 +1,129 @@
+{
+  "data": {
+    "event": {
+      "api_id": "evt-vlanightpanel0001",
+      "name": "[Fireside Discussion] From Tokens to Robots",
+      "description_short": "A fireside discussion on vision-language-action models and embodied AI, hosted in San Francisco.",
+      "cover_url": "https://images.lumacdn.com/event-covers/vla-night-panel-cover.jpg",
+      "start_at": "2026-08-13T16:30:00.000Z",
+      "end_at": "2026-08-14T01:30:00.000Z",
+      "timezone": "America/Los_Angeles",
+      "geo_address_info": {
+        "city": "San Francisco",
+        "region": "California",
+        "region_short": "CA",
+        "country": "United States",
+        "address": "525 Market St",
+        "full_address": "525 Market St, San Francisco, CA 94105",
+        "short_address": "525 Market St, San Francisco",
+        "sublocality": "SoMa",
+        "city_state": "San Francisco, CA",
+        "place_id": "ChIJIQBpAG2ahYAR_6128GcTUEo"
+      },
+      "coordinate": {
+        "latitude": 37.7936,
+        "longitude": -122.3965
+      },
+      "show_guest_list": true,
+      "url": "vla-night-panel",
+      "geo_latitude": 37.7936,
+      "geo_longitude": -122.3965,
+      "recurrence_id": null
+    },
+    "guest_count": 552,
+    "ticket_count": 1,
+    "hosts": [
+      {
+        "api_id": "usr-brightdataorg0001",
+        "name": "Bright Data",
+        "handle": "bright-data",
+        "avatar_url": "https://images.lumacdn.com/avatars/brightdata.jpg",
+        "linkedin_handle": "/company/bright-data",
+        "is_organization": true
+      },
+      {
+        "api_id": "usr-itsajchan0001",
+        "name": "AJ Chan",
+        "handle": "itsajchan",
+        "avatar_url": "https://images.lumacdn.com/avatars/itsajchan.jpg",
+        "linkedin_handle": "/in/itsajchan",
+        "is_organization": false
+      }
+    ],
+    "featured_guests": [
+      {
+        "api_id": "usr-guest0001",
+        "name": "Karim Baba",
+        "avatar_url": "https://images.lumacdn.com/avatars/karim-baba.jpg",
+        "linkedin_handle": "/in/karim-baba-130547289",
+        "bio_short": "Robotics engineer working on imitation learning."
+      },
+      {
+        "api_id": "usr-guest0002",
+        "name": "Priya Natarajan",
+        "avatar_url": "https://images.lumacdn.com/avatars/priya-natarajan.jpg",
+        "linkedin_handle": "/in/priya-natarajan-robotics",
+        "bio_short": null
+      },
+      {
+        "api_id": "usr-guest0003",
+        "name": "Daniel Osei",
+        "avatar_url": "https://images.lumacdn.com/avatars/daniel-osei.jpg",
+        "linkedin_handle": "/in/daniel-osei-vc",
+        "bio_short": "Partner at Frontier Robotics Ventures, investing in embodied AI."
+      },
+      {
+        "api_id": "usr-guest0004",
+        "name": "Emily Zhou",
+        "avatar_url": "https://images.lumacdn.com/avatars/emily-zhou.jpg",
+        "linkedin_handle": "/in/emily-zhou-cv",
+        "bio_short": null
+      },
+      {
+        "api_id": "usr-guest0005",
+        "name": "Marcus Lindqvist",
+        "avatar_url": "https://images.lumacdn.com/avatars/marcus-lindqvist.jpg",
+        "linkedin_handle": "/in/marcus-lindqvist-founder",
+        "bio_short": null
+      },
+      {
+        "api_id": "usr-guest0006",
+        "name": "Sofia Reyes",
+        "avatar_url": "https://images.lumacdn.com/avatars/sofia-reyes.jpg",
+        "linkedin_handle": "/in/sofia-reyes-phd",
+        "bio_short": "PhD candidate, Stanford, robot learning."
+      },
+      {
+        "api_id": "usr-guest0007",
+        "name": "Tomasz Wojcik",
+        "avatar_url": "https://images.lumacdn.com/avatars/tomasz-wojcik.jpg",
+        "linkedin_handle": "/in/tomasz-wojcik-eng",
+        "bio_short": null
+      },
+      {
+        "api_id": "usr-guest0008",
+        "name": "Hana Kobayashi",
+        "avatar_url": "https://images.lumacdn.com/avatars/hana-kobayashi.jpg",
+        "linkedin_handle": "/in/hana-kobayashi-pm",
+        "bio_short": null
+      },
+      {
+        "api_id": "usr-guest0009",
+        "name": "Grace Chen",
+        "avatar_url": "https://images.lumacdn.com/avatars/grace-chen.jpg",
+        "linkedin_handle": "/in/grace-chen-pharma",
+        "bio_short": "Principal Scientist, Genentech, computational biology."
+      },
+      {
+        "api_id": "usr-guest0010",
+        "name": "Liam O'Connor",
+        "avatar_url": "https://images.lumacdn.com/avatars/liam-oconnor.jpg",
+        "linkedin_handle": "/in/liam-oconnor-student",
+        "bio_short": "New grad, incoming SWE at a robotics startup."
+      }
+    ],
+    "categories": ["Technology", "Robotics", "AI"],
+    "description_mirror": "Join us for an evening exploring vision-language-action models and embodied AI. Speakers: Karim Baba, Priya Natarajan, and Daniel Osei will discuss where robot learning is headed next.",
+    "featured_infos": []
+  }
+}
