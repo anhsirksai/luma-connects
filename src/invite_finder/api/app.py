@@ -8,7 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from invite_finder import db
-from invite_finder.api.deps import get_settings
+from invite_finder.api.deps import get_settings, require_admin
+from invite_finder.api.routes_auth import router as auth_router
 from invite_finder.api.routes_chat import router as chat_router
 from invite_finder.api.routes_events import router as events_router
 from invite_finder.api.routes_runs import router as runs_router
@@ -49,6 +50,21 @@ def create_app() -> FastAPI:
                 print(f"invite-api: marked {reaped} interrupted run(s) as failed on startup")
         finally:
             conn.close()
+
+        if not settings.admin_phone:
+            print(
+                "invite-api: WARNING — ADMIN_PHONE is unset, so the data routes are "
+                "OPEN to anyone who can reach this URL, and they serve names, "
+                "LinkedIn URLs, emails and phone numbers. Safe on localhost; set "
+                "ADMIN_PHONE before exposing a tunnel or preview URL.",
+                flush=True,
+            )
+        elif not settings.linq_api_key:
+            print(
+                "invite-api: WARNING — ADMIN_PHONE is set but LINQ_API_KEY is not, "
+                "so passcodes cannot be delivered and nobody can log in.",
+                flush=True,
+            )
         yield
 
     app = FastAPI(title="Luma Connects API", version="0.1.0", lifespan=lifespan)
@@ -62,10 +78,18 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.include_router(events_router)
-    app.include_router(runs_router)
-    app.include_router(chat_router)
+    # Everything serving person data sits behind the passcode gate.
+    admin_only = [Depends(require_admin)]
+    app.include_router(events_router, dependencies=admin_only)
+    app.include_router(runs_router, dependencies=admin_only)
+    app.include_router(chat_router, dependencies=admin_only)
+
+    # Webhooks must NOT be gated: Stripe and Linq call them machine-to-machine
+    # and cannot present a passcode. They authenticate by signature instead,
+    # verified inside each route. Auth routes are how you get a session, so
+    # they are open by necessity.
     app.include_router(webhooks_router)
+    app.include_router(auth_router)
 
     @app.exception_handler(LumaUrlError)
     async def _luma_url_error(request: Request, exc: LumaUrlError) -> JSONResponse:
@@ -118,6 +142,7 @@ def create_app() -> FastAPI:
             offline=settings.invite_offline,
             unfulfilled_payments_cents=unfulfilled_cents,
             unfulfilled_payments_count=unfulfilled_count,
+            admin_auth="on" if settings.admin_phone else "off",
         )
 
     return app

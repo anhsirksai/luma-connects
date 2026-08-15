@@ -66,7 +66,7 @@ requirement, not an optimization — don't bypass or weaken it.
 ## Testing
 
 ```bash
-.venv/bin/pytest                                    # 116 tests, zero network/LLM calls
+.venv/bin/pytest                                    # 143 tests, zero network/LLM calls
 cd invite_viewer && npm run lint && npm run build
 ```
 
@@ -101,7 +101,7 @@ pattern before adding new LLM-calling code.
 
 ## Status
 
-Fully built, tested (116 backend tests, frontend lint/build clean), and
+Fully built, tested (143 backend tests, frontend lint/build clean), and
 browser-verified end-to-end against real OpenAI credentials. **Deploy target is
 Render** (`render.yaml` Blueprint, same root `Dockerfile`); Fly configs are
 still present but that account's free allowance is exhausted. The service must

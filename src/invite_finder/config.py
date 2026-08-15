@@ -75,6 +75,11 @@ class Settings:
     # Hard ceiling on what one run may spend, independent of the Perflo
     # mandate, so a bug cannot drain the budget even if the mandate is generous.
     enrichment_budget_cents: int = 500
+    # Operator auth. Setting ADMIN_PHONE turns on the passcode gate for the
+    # data routes; the code is texted to this number over Linq. Empty means
+    # the API is OPEN — fine on localhost, never on a public URL.
+    admin_phone: str = ""
+    admin_session_ttl_hours: int = 24
     public_base_url: str = "http://localhost:8000"
 
     @classmethod
@@ -118,6 +123,8 @@ class Settings:
             apify_token=os.getenv("APIFY_TOKEN", ""),
             apify_api_base_url=os.getenv("APIFY_API_BASE_URL", "https://api.apify.com/v2"),
             enrichment_budget_cents=_int_env("ENRICHMENT_BUDGET_CENTS", 500),
+            admin_phone=os.getenv("ADMIN_PHONE", ""),
+            admin_session_ttl_hours=_int_env("ADMIN_SESSION_TTL_HOURS", 24),
             # RENDER_EXTERNAL_URL is injected by Render with the service's real
             # public URL. Falling back to it means the deployed app knows its
             # own address without anyone hardcoding a guess that has to be

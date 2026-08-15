@@ -165,11 +165,52 @@ Bright Data cache entries (Luma: 6h, SERP/profiles: 30d — see
 | `PERFLO_API_BASE_URL` | no (default `https://api.perflo.ai`) | Perflo API root |
 | `ENRICHMENT_BUDGET_CENTS` | no (default `500`) | hard spend ceiling per process, independent of the mandate |
 | `PUBLIC_BASE_URL` | messaging | public HTTPS base for webhook callbacks (ngrok/cloudflared in dev) |
+| `ADMIN_PHONE` | **before any public URL** | turns on the passcode gate; the code is texted here. Blank = API is open |
+| `ADMIN_SESSION_TTL_HOURS` | no (default `24`) | how long an admin session lasts |
+
+### Operator auth
+
+Tunnels and Superserve preview URLs are unauthenticated by design — anyone who
+learns the URL can reach it — and the data routes serve names, LinkedIn URLs,
+emails and phone numbers. Setting `ADMIN_PHONE` gates them behind a one-time
+passcode texted to that number:
+
+```bash
+# 1. ask for a code (it arrives by text)
+curl -X POST https://<host>/api/auth/request-code
+
+# 2. exchange it for a 24h session token
+curl -X POST https://<host>/api/auth/verify \
+  -H 'content-type: application/json' -d '{"code":"123456"}'
+
+# 3. use it
+curl https://<host>/api/events -H "Authorization: Bearer <token>"
+```
+
+Codes are single-use, expire in 10 minutes, allow 5 attempts, and requesting a
+new one invalidates the old. Only salted hashes are stored, so a copy of the
+database yields neither a working code nor a live session.
+
+**What is deliberately *not* gated:** `/api/webhooks/*` (Stripe and Linq call
+machine-to-machine and cannot present a passcode — they authenticate by
+signature instead, verified in each route), `/api/auth/*` (how you get in), and
+`/api/health`. Gating the webhooks would silently stop every payment.
+
+**Leaving `ADMIN_PHONE` blank leaves the API open.** That is intentional for
+localhost — with no phone there is no way to deliver a passcode, so enforcing
+it would lock you out of your own API — but startup prints a warning and
+`/api/health` reports `"admin_auth": "off"`.
+
+> ⚠️ The Next.js frontend in `invite_viewer/` does **not** yet send an admin
+> token. With `ADMIN_PHONE` set, the backend returns 401 to it. Either leave
+> the gate off while working on the frontend locally, or add the token to
+> `lib/api.ts` — the backend accepts `Authorization: Bearer <token>` or
+> `X-Admin-Token: <token>`.
 
 ## Testing
 
 ```bash
-.venv/bin/pytest                      # backend: 116 tests, no network/LLM calls
+.venv/bin/pytest                      # backend: 143 tests, no network/LLM calls
 cd invite_viewer && npm run lint && npm run build   # frontend
 ```
 

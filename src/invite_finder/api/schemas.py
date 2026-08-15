@@ -114,6 +114,9 @@ class HealthResponse(BaseModel):
     # without querying the database.
     unfulfilled_payments_cents: int = 0
     unfulfilled_payments_count: int = 0
+    # "on" when the passcode gate is active, "off" when the data routes are
+    # open to anyone who can reach the URL.
+    admin_auth: str = "off"
 
 
 __all__ = [

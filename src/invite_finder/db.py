@@ -255,6 +255,41 @@ MIGRATIONS: list[tuple[int, str]] = [
           ON orphan_payments(resolved_at, created_at);
         """,
     ),
+    (
+        4,
+        """
+        -- Operator auth. The API is reachable by anyone who knows the URL
+        -- (Superserve preview URLs and tunnels are both unauthenticated), and
+        -- it serves names, LinkedIn URLs and contact data. These two tables
+        -- gate it behind a passcode delivered to the operator's own phone.
+        --
+        -- Only hashes are stored: a database copy must not yield a working
+        -- passcode or a live session.
+        CREATE TABLE admin_passcodes (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          code_hash   TEXT NOT NULL,
+          salt        TEXT NOT NULL,
+          attempts    INTEGER NOT NULL DEFAULT 0,
+          consumed_at TEXT,
+          expires_at  TEXT NOT NULL,
+          created_at  TEXT NOT NULL
+        );
+        CREATE INDEX idx_admin_passcodes_live
+          ON admin_passcodes(consumed_at, expires_at);
+
+        CREATE TABLE admin_sessions (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          token_hash TEXT NOT NULL UNIQUE,
+          label      TEXT,
+          expires_at TEXT NOT NULL,
+          revoked_at TEXT,
+          last_seen_at TEXT,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX idx_admin_sessions_live
+          ON admin_sessions(revoked_at, expires_at);
+        """,
+    ),
 ]
 
 
