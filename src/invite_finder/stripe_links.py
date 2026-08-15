@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -65,10 +66,26 @@ def verify_signature(*, secret: str, body: bytes, signature_header: str) -> bool
     return any(hmac.compare_digest(c, expected) for c in candidates)
 
 
-def parse_checkout_completed(payload: dict[str, Any]) -> tuple[int, str | None] | None:
-    """Extract (order_id, stripe_session_id) from a checkout.session.completed
-    event. Returns None for any other event type, or when the session carries no
-    usable order reference."""
+@dataclass(frozen=True)
+class CheckoutCompleted:
+    """A completed checkout, whether or not we can attribute it.
+
+    `order_id` is None when the reference is missing or unparseable — someone
+    paid the raw Payment Link, or reused a stale one. That is still money, so
+    the caller must handle it rather than treat it as a non-event.
+    """
+
+    session_id: str | None
+    order_id: int | None
+    claimed_reference: str | None
+    amount_cents: int | None
+    email: str | None
+    phone: str | None
+
+
+def parse_checkout_completed(payload: dict[str, Any]) -> CheckoutCompleted | None:
+    """Parse a checkout.session.completed event. Returns None only for other
+    event types — never for a completed checkout we cannot attribute."""
     if payload.get("type") != "checkout.session.completed":
         return None
 
@@ -78,15 +95,27 @@ def parse_checkout_completed(payload: dict[str, Any]) -> tuple[int, str | None] 
         return None
 
     reference = obj.get("client_reference_id")
-    if reference is None:
-        return None
-    try:
-        order_id = int(str(reference))
-    except ValueError:
-        return None
+    order_id: int | None = None
+    if reference is not None:
+        try:
+            order_id = int(str(reference))
+        except ValueError:
+            order_id = None
 
+    details = obj.get("customer_details")
+    details = details if isinstance(details, dict) else {}
+
+    amount = obj.get("amount_total")
     session_id = obj.get("id")
-    return order_id, str(session_id) if session_id else None
+
+    return CheckoutCompleted(
+        session_id=str(session_id) if session_id else None,
+        order_id=order_id,
+        claimed_reference=str(reference) if reference is not None else None,
+        amount_cents=int(amount) if isinstance(amount, int) else None,
+        email=(details.get("email") or None),
+        phone=(details.get("phone") or None),
+    )
 
 
 def loads(body: bytes) -> dict[str, Any]:

@@ -57,15 +57,49 @@ def test_paying_an_order_grants_entitlement_exactly_once() -> None:
         conn, customer_id=customer_id, event_id=event_id, tier="full"
     )
 
-    assert commerce_store.mark_order_paid(conn, order_id, stripe_session_id="cs_1") is True
+    assert commerce_store.settle_order(conn, order_id, stripe_session_id="cs_1") == "paid"
     assert commerce_store.has_entitlement(
         conn, customer_id=customer_id, event_id=event_id, tier="full"
     )
     assert commerce_store.revenue_cents(conn) == 300
 
     # Stripe retries webhooks. A replay must not double-count revenue.
-    assert commerce_store.mark_order_paid(conn, order_id, stripe_session_id="cs_1") is False
+    assert commerce_store.settle_order(conn, order_id, stripe_session_id="cs_1") == "replay"
     assert commerce_store.revenue_cents(conn) == 300
+
+
+def test_settle_distinguishes_a_replay_from_a_missing_order() -> None:
+    """The distinction that stops us swallowing a real payment: a replay is
+    benign, a missing order means someone paid and got nothing."""
+    conn = make_conn()
+    assert commerce_store.settle_order(conn, 9999) == "unknown"
+    assert commerce_store.settle_order(conn, None) == "unknown"
+
+
+def test_orphan_payments_are_recorded_once_per_session() -> None:
+    conn = make_conn()
+    first = commerce_store.record_orphan_payment(
+        conn, stripe_session_id="cs_9", claimed_order_id="41", amount_cents=400,
+        email="a@b.com", phone="+14155551234", reason="order_missing",
+    )
+    # Stripe retries: the same session must not multiply into several rows,
+    # or the operator sees phantom money and the payer gets several apologies.
+    second = commerce_store.record_orphan_payment(
+        conn, stripe_session_id="cs_9", claimed_order_id="41", amount_cents=400,
+        email="a@b.com", phone="+14155551234", reason="order_missing",
+    )
+    assert first == second
+    assert len(commerce_store.list_unresolved_orphans(conn)) == 1
+    assert commerce_store.unresolved_orphan_cents(conn) == 400
+
+
+def test_find_customer_by_handle_routes_an_orphan_back_to_its_thread() -> None:
+    conn = make_conn()
+    commerce_store.upsert_customer(conn, handle="+14155551234", chat_id="chat-7")
+    found = commerce_store.find_customer_by_handle(conn, "+14155551234")
+    assert found is not None and found["chat_id"] == "chat-7"
+    assert commerce_store.find_customer_by_handle(conn, "+19999999999") is None
+    assert commerce_store.find_customer_by_handle(conn, "") is None
 
 
 def test_entitlement_tiers_are_ordered_not_just_matched() -> None:

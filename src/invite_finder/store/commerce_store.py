@@ -93,18 +93,28 @@ def get_order(conn: sqlite3.Connection, order_id: int) -> sqlite3.Row | None:
     return conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
 
 
-def mark_order_paid(
-    conn: sqlite3.Connection, order_id: int, *, stripe_session_id: str | None = None
-) -> bool:
+def settle_order(
+    conn: sqlite3.Connection, order_id: int | None, *, stripe_session_id: str | None = None
+) -> str:
     """Settle an order and grant the matching entitlement.
 
-    Returns False if the order is unknown or already paid — Stripe retries
-    webhooks, so this must be idempotent or one payment grants twice and the
-    revenue ledger double-counts.
+    Returns one of:
+      "paid"    — settled now; fulfil it
+      "replay"  — already settled; Stripe is retrying, ignore safely
+      "unknown" — no such order, but money still moved
+
+    The distinction between "replay" and "unknown" is the whole point. Both
+    mean "do not fulfil from this callback", but only one of them is benign:
+    "unknown" is a customer who has paid and has nothing to show for it, and
+    it must never be silently swallowed.
     """
+    if order_id is None:
+        return "unknown"
     order = get_order(conn, order_id)
-    if order is None or order["status"] != "pending":
-        return False
+    if order is None:
+        return "unknown"
+    if order["status"] != "pending":
+        return "replay"
 
     conn.execute(
         "UPDATE orders SET status='paid', paid_at=?, stripe_session_id=? WHERE id=?",
@@ -119,7 +129,7 @@ def mark_order_paid(
             order_id=order_id,
         )
     conn.commit()
-    return True
+    return "paid"
 
 
 def mark_order_delivered(conn: sqlite3.Connection, order_id: int) -> None:
@@ -148,6 +158,97 @@ def revenue_cents(conn: sqlite3.Connection) -> int:
         "WHERE status IN ('paid', 'delivered')"
     ).fetchone()
     return int(row["total"])
+
+
+# --- orphan payments ---------------------------------------------------------
+
+
+def record_orphan_payment(
+    conn: sqlite3.Connection,
+    *,
+    stripe_session_id: str | None,
+    claimed_order_id: str | None,
+    amount_cents: int | None,
+    email: str | None,
+    phone: str | None,
+    reason: str,
+    raw_json: str | None = None,
+) -> int:
+    """Persist money we received but cannot attribute to an order.
+
+    Idempotent on the Stripe session id, because Stripe retries: a retried
+    orphan must not multiply into several rows and several apology texts.
+    """
+    existing = None
+    if stripe_session_id:
+        existing = conn.execute(
+            "SELECT id FROM orphan_payments WHERE stripe_session_id = ?",
+            (stripe_session_id,),
+        ).fetchone()
+    if existing is not None:
+        return int(existing["id"])
+
+    cursor = conn.execute(
+        """
+        INSERT INTO orphan_payments
+          (stripe_session_id, claimed_order_id, amount_cents, email, phone,
+           reason, raw_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            stripe_session_id, claimed_order_id, amount_cents, email, phone,
+            reason, raw_json, now_iso(),
+        ),
+    )
+    conn.commit()
+    return int(cursor.lastrowid)
+
+
+def get_orphan_payment(
+    conn: sqlite3.Connection, orphan_id: int
+) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT * FROM orphan_payments WHERE id = ?", (orphan_id,)
+    ).fetchone()
+
+
+def mark_orphan_notified(conn: sqlite3.Connection, orphan_id: int) -> None:
+    conn.execute(
+        "UPDATE orphan_payments SET notified=1 WHERE id=?", (orphan_id,)
+    )
+    conn.commit()
+
+
+def list_unresolved_orphans(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return list(
+        conn.execute(
+            "SELECT * FROM orphan_payments WHERE resolved_at IS NULL "
+            "ORDER BY created_at DESC"
+        ).fetchall()
+    )
+
+
+def unresolved_orphan_cents(conn: sqlite3.Connection) -> int:
+    """Money taken that nobody has been given anything for. Should be 0."""
+    row = conn.execute(
+        "SELECT COALESCE(SUM(amount_cents), 0) AS total FROM orphan_payments "
+        "WHERE resolved_at IS NULL"
+    ).fetchone()
+    return int(row["total"])
+
+
+def find_customer_by_handle(
+    conn: sqlite3.Connection, handle: str
+) -> sqlite3.Row | None:
+    """Look up a customer by messaging handle, so a payment carrying a phone
+    number can still be routed back to the right thread."""
+    if not handle:
+        return None
+    normalized = handle.strip()
+    return conn.execute(
+        "SELECT * FROM customers WHERE handle = ? ORDER BY id DESC LIMIT 1",
+        (normalized,),
+    ).fetchone()
 
 
 # --- entitlements ------------------------------------------------------------

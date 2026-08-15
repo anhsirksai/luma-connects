@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -16,9 +16,9 @@ from invite_finder.api.routes_webhooks import router as webhooks_router
 from invite_finder.api.schemas import HealthResponse
 from invite_finder.brightdata import BrightDataError
 from invite_finder.cache import CacheMiss
-from invite_finder.config import ConfigError
+from invite_finder.config import ConfigError, Settings
 from invite_finder.luma import LumaParseError, LumaUrlError
-from invite_finder.store import run_store
+from invite_finder.store import commerce_store, run_store
 
 
 HTTP_STATUS_CODES = {
@@ -96,16 +96,29 @@ def create_app() -> FastAPI:
         return _error_response(exc.status_code, code, str(exc.detail))
 
     @app.get("/api/health", response_model=HealthResponse)
-    def health() -> HealthResponse:
+    def health(request_settings: Settings = Depends(get_settings)) -> HealthResponse:
+        # Resolved via Depends rather than the closed-over `settings` so the
+        # health view always reflects the settings actually in force.
+        settings = request_settings
         conn = db.connect(settings.invite_db_path)
+        unfulfilled_cents = 0
+        unfulfilled_count = 0
         try:
             conn.execute("SELECT 1")
             db_status = "ok"
+            unfulfilled_cents = commerce_store.unresolved_orphan_cents(conn)
+            unfulfilled_count = len(commerce_store.list_unresolved_orphans(conn))
         except Exception:  # noqa: BLE001
             db_status = "error"
         finally:
             conn.close()
-        return HealthResponse(status="ok", db=db_status, offline=settings.invite_offline)
+        return HealthResponse(
+            status="degraded" if unfulfilled_count else "ok",
+            db=db_status,
+            offline=settings.invite_offline,
+            unfulfilled_payments_cents=unfulfilled_cents,
+            unfulfilled_payments_count=unfulfilled_count,
+        )
 
     return app
 

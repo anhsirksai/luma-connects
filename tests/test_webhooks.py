@@ -291,15 +291,100 @@ def test_replayed_stripe_webhook_does_not_double_count_or_refulfil(ctx) -> None:
     assert commerce_store.revenue_cents(ctx["conn"]) == 200
 
 
-def test_other_stripe_events_and_missing_references_are_ignored(ctx) -> None:
-    for payload in (
-        {"type": "payment_intent.created", "data": {"object": {}}},
-        {"type": "checkout.session.completed", "data": {"object": {}}},
-        {"type": "checkout.session.completed", "data": {"object": {"client_reference_id": "abc"}}},
-    ):
-        response = ctx["client"].post("/api/webhooks/stripe", json=payload)
-        assert response.status_code == 200
-        assert response.json()["ignored"] == "uninteresting_event"
+def test_non_checkout_stripe_events_are_ignored(ctx) -> None:
+    response = ctx["client"].post(
+        "/api/webhooks/stripe",
+        json={"type": "payment_intent.created", "data": {"object": {}}},
+    )
+    assert response.status_code == 200
+    assert response.json()["ignored"] == "uninteresting_event"
+
+
+def test_payment_for_a_missing_order_is_recorded_not_swallowed(ctx) -> None:
+    """The failure this guards: the orders row is gone (ephemeral disk, stale
+    link), so there is nothing to fulfil — but the customer has still paid."""
+    response = ctx["client"].post(
+        "/api/webhooks/stripe",
+        json={
+            "type": "checkout.session.completed",
+            "data": {"object": {
+                "id": "cs_missing", "client_reference_id": "4242",
+                "amount_total": 400, "customer_details": {"email": "a@b.com"},
+            }},
+        },
+    )
+    body = response.json()
+    assert response.status_code == 200          # 200, or Stripe retries forever
+    assert body["needs_manual_fulfilment"] is True
+    assert body["reason"] == "order_missing"
+
+    orphans = commerce_store.list_unresolved_orphans(ctx["conn"])
+    assert len(orphans) == 1
+    assert orphans[0]["amount_cents"] == 400
+    assert orphans[0]["claimed_order_id"] == "4242"
+
+
+def test_payment_with_no_reference_is_also_captured(ctx) -> None:
+    """Someone paid the raw Payment Link without going through the bot. Still
+    money; previously this returned a bare 200 and vanished."""
+    response = ctx["client"].post(
+        "/api/webhooks/stripe",
+        json={"type": "checkout.session.completed",
+              "data": {"object": {"id": "cs_raw", "amount_total": 1000}}},
+    )
+    assert response.json()["reason"] == "no_reference"
+    assert commerce_store.unresolved_orphan_cents(ctx["conn"]) == 1000
+
+
+def test_orphan_payer_is_texted_when_stripe_gives_a_known_phone(ctx) -> None:
+    commerce_store.upsert_customer(ctx["conn"], handle="+14155551234", chat_id="chat-1")
+    response = ctx["client"].post(
+        "/api/webhooks/stripe",
+        json={
+            "type": "checkout.session.completed",
+            "data": {"object": {
+                "id": "cs_known", "client_reference_id": "777", "amount_total": 300,
+                "customer_details": {"phone": "+14155551234"},
+            }},
+        },
+    )
+    assert response.json()["notified"] is True
+    assert "$3.00" in ctx["linq"].last
+    assert "no extra charge" in ctx["linq"].last
+
+
+def test_retried_orphan_does_not_apologise_twice(ctx) -> None:
+    commerce_store.upsert_customer(ctx["conn"], handle="+14155551234", chat_id="chat-1")
+    event = {
+        "type": "checkout.session.completed",
+        "data": {"object": {
+            "id": "cs_retry", "client_reference_id": "888", "amount_total": 300,
+            "customer_details": {"phone": "+14155551234"},
+        }},
+    }
+    ctx["client"].post("/api/webhooks/stripe", json=event)
+    sent_after_first = len(ctx["linq"].sent)
+    ctx["client"].post("/api/webhooks/stripe", json=event)
+
+    assert len(ctx["linq"].sent) == sent_after_first, "one payment, one apology"
+    assert len(commerce_store.list_unresolved_orphans(ctx["conn"])) == 1
+
+
+def test_health_reports_unfulfilled_money(ctx) -> None:
+    """Money owed has to be visible without opening the database."""
+    before = ctx["client"].get("/api/health").json()
+    assert before["status"] == "ok"
+    assert before["unfulfilled_payments_cents"] == 0
+
+    ctx["client"].post(
+        "/api/webhooks/stripe",
+        json={"type": "checkout.session.completed",
+              "data": {"object": {"id": "cs_h", "amount_total": 250}}},
+    )
+    after = ctx["client"].get("/api/health").json()
+    assert after["status"] == "degraded"
+    assert after["unfulfilled_payments_cents"] == 250
+    assert after["unfulfilled_payments_count"] == 1
 
 
 def test_stripe_signature_is_enforced_when_a_secret_is_set(ctx) -> None:

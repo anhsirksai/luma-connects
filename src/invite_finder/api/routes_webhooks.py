@@ -126,18 +126,95 @@ async def stripe_webhook(
     except stripe_links.StripeError:
         return _ok(ignored="unparseable")
 
-    parsed = stripe_links.parse_checkout_completed(payload)
-    if parsed is None:
+    checkout = stripe_links.parse_checkout_completed(payload)
+    if checkout is None:
         return _ok(ignored="uninteresting_event")
 
-    order_id, session_id = parsed
-    # Stripe retries webhooks; mark_order_paid is the idempotency guard, so
+    # Stripe retries webhooks; settle_order is the idempotency guard, so
     # fulfilment only ever runs once per order.
-    newly_paid = commerce_store.mark_order_paid(
-        conn, order_id, stripe_session_id=session_id
+    outcome = commerce_store.settle_order(
+        conn, checkout.order_id, stripe_session_id=checkout.session_id
     )
-    if not newly_paid:
+
+    if outcome == "replay":
         return _ok(ignored="already_settled")
 
-    asyncio.create_task(deliver_paid_order(deps, order_id))
-    return _ok(order_id=order_id, fulfilling=True)
+    if outcome == "unknown":
+        # Money moved and we have nothing to fulfil against. Never return a
+        # bare 200 here: record it, try to reach the payer, and make it loud.
+        return await _handle_orphan_payment(deps, conn, checkout, body)
+
+    assert checkout.order_id is not None  # settle_order only returns "paid" with one
+    asyncio.create_task(deliver_paid_order(deps, checkout.order_id))
+    return _ok(order_id=checkout.order_id, fulfilling=True)
+
+
+async def _handle_orphan_payment(
+    deps: ConversationDeps,
+    conn: sqlite3.Connection,
+    checkout: stripe_links.CheckoutCompleted,
+    body: bytes,
+) -> JSONResponse:
+    """A completed checkout with no matching order.
+
+    Three ways to get here: the order row is gone (an ephemeral filesystem
+    wiped it between checkout and callback), someone paid the raw Payment Link
+    without going through the bot, or a stale link was reused. In all three a
+    real person is out of pocket, so the payment is persisted first and the
+    customer told second.
+    """
+    reason = (
+        "no_reference" if checkout.order_id is None else "order_missing"
+    )
+    orphan_id = commerce_store.record_orphan_payment(
+        conn,
+        stripe_session_id=checkout.session_id,
+        claimed_order_id=checkout.claimed_reference,
+        amount_cents=checkout.amount_cents,
+        email=checkout.email,
+        phone=checkout.phone,
+        reason=reason,
+        raw_json=body.decode("utf-8", errors="replace")[:20000],
+    )
+
+    amount = f"${(checkout.amount_cents or 0) / 100:.2f}"
+    print(
+        f"invite-api: UNFULFILLED PAYMENT {amount} session={checkout.session_id} "
+        f"reason={reason} ref={checkout.claimed_reference} "
+        f"email={checkout.email} phone={checkout.phone} orphan_id={orphan_id}",
+        flush=True,
+    )
+
+    # If Stripe collected a phone we already know, we can apologise in-thread.
+    # Guard on the stored flag, not just on the row being new: Stripe retries,
+    # and one payment should produce exactly one apology.
+    existing = commerce_store.get_orphan_payment(conn, orphan_id)
+    already_notified = bool(existing["notified"]) if existing is not None else False
+
+    notified = already_notified
+    customer = (
+        commerce_store.find_customer_by_handle(conn, checkout.phone)
+        if checkout.phone and not already_notified
+        else None
+    )
+    if customer is not None and customer["chat_id"]:
+        try:
+            deps.linq.send_to_chat(
+                str(customer["chat_id"]),
+                f"I received your {amount} payment but lost the list it was for — "
+                f"that's on me. Paste the names again and I'll run it straight "
+                f"away at no extra charge.",
+            )
+            commerce_store.mark_orphan_notified(conn, orphan_id)
+            notified = True
+        except Exception as exc:  # noqa: BLE001 - never fail the webhook on this
+            print(f"invite-api: could not notify orphan payer: {exc}", flush=True)
+
+    # 200 so Stripe stops retrying: the payment is recorded, and retrying
+    # cannot make an order that no longer exists reappear.
+    return _ok(
+        orphan_payment_id=orphan_id,
+        reason=reason,
+        notified=notified,
+        needs_manual_fulfilment=True,
+    )

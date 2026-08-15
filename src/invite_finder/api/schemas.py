@@ -109,6 +109,11 @@ class HealthResponse(BaseModel):
     status: str
     db: str
     offline: bool
+    # Money taken that nobody has been given anything for. Anything but 0 is an
+    # incident: someone paid and is waiting. Surfaced on health so it is visible
+    # without querying the database.
+    unfulfilled_payments_cents: int = 0
+    unfulfilled_payments_count: int = 0
 
 
 __all__ = [

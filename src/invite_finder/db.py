@@ -228,6 +228,33 @@ MIGRATIONS: list[tuple[int, str]] = [
         CREATE INDEX idx_service_purchases_capability ON service_purchases(capability);
         """,
     ),
+    (
+        3,
+        """
+        -- Money received that we could not match to an order.
+        --
+        -- Happens when the orders row is gone (an ephemeral filesystem wiped
+        -- the DB between checkout and callback), when someone pays the raw
+        -- Payment Link without going through the bot, or when a stale link is
+        -- reused. Stripe is the durable record in all three cases; this table
+        -- is our copy, so unfulfilled money is never merely dropped.
+        CREATE TABLE orphan_payments (
+          id                INTEGER PRIMARY KEY AUTOINCREMENT,
+          stripe_session_id TEXT UNIQUE,
+          claimed_order_id  TEXT,
+          amount_cents      INTEGER,
+          email             TEXT,
+          phone             TEXT,
+          reason            TEXT NOT NULL,
+          notified          INTEGER NOT NULL DEFAULT 0,
+          resolved_at       TEXT,
+          raw_json          TEXT,
+          created_at        TEXT NOT NULL
+        );
+        CREATE INDEX idx_orphan_payments_unresolved
+          ON orphan_payments(resolved_at, created_at);
+        """,
+    ),
 ]
 
 
