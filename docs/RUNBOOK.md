@@ -221,20 +221,37 @@ and the SERP discovery `Runner.run`) are stubbed at the function boundary in
 
 ## Deploying
 
-Two supported targets. **Render is the current one** — Fly's free allowance
-ran out, and Render gives the same thing (Docker web service + persistent
-disk) with hackathon credits behind it.
+The requirement, whichever target you pick, is not negotiable: a service that
+stays up, on a stable public HTTPS URL. Linq and Stripe push webhooks *to*
+this app, so anything that sleeps when idle drops payments.
 
-Whichever you pick, the requirement is the same and it is not negotiable: a
-service that stays up, on a stable public HTTPS URL. Linq and Stripe push
-webhooks *to* this app, so anything that sleeps when idle drops payments.
+**Current default: a `cloudflared` tunnel to localhost.** No card, no cold
+starts, SQLite stays on your own disk. Render and Superserve are documented
+below as paid always-on options if the laptop needs to close.
 
-> **Not Superserve or sandbox0.** Both are agent *sandboxes* — isolated VMs an
-> agent gets to execute code in, designed to pause between turns and resume.
-> That is the opposite of a webhook listener. They would suit a future split
-> where enrichment runs as a detached worker; they cannot host this API.
+### Tunnel to localhost (current)
 
-### Render (current)
+```bash
+brew install cloudflared
+cloudflared tunnel --url http://localhost:8000   # prints a public https URL
+```
+
+Point both webhooks at that URL (`/api/webhooks/linq`, `/api/webhooks/stripe`).
+The only thing a paid deploy buys over this is surviving a closed laptop.
+
+> **Superserve and sandbox0 were evaluated and are not used, on cost — not
+> capability.** Superserve genuinely can host this: a Python SDK, a durable
+> filesystem that survives pause/resume, and preview URLs
+> (`https://{port}-{id}.sandbox.superserve.ai`) that stay stable across
+> pause/resume. But "no credit card to start" only means signup doesn't
+> demand one — it's metered from the first second
+> (~$0.0504/vCPU-hr + $0.0162/GiB-hr), and pausing drops webhooks, so it has
+> to run always-on: ~$1.36/day, ~$41/month. Revisit if the "Best use of
+> Superserve" prize track becomes worth that cost. sandbox0's capability for
+> this specific shape (stable public URL, always-on, disk-backed) was not
+> separately verified — no claim either way.
+
+### Render (paid, always-on)
 
 `render.yaml` at the repo root is a Blueprint: Render dashboard -> New ->
 Blueprint -> point it at this repo. It builds the same root `Dockerfile`, so
@@ -271,20 +288,6 @@ nothing about the image changes.
 `numInstances: 1` (in the paid config) is not a cost saving — a Render disk
 can only attach to a single instance, which matches what this app needs
 anyway (see the `--workers 1` note below).
-
-### Tunnel to localhost (recommended while money is moving)
-
-Strictly better than the free plan for a live demo: no card, no cold starts,
-and SQLite persists on your own disk.
-
-```bash
-brew install cloudflared
-cloudflared tunnel --url http://localhost:8000   # prints a public https URL
-```
-
-Point both webhooks at that URL (`/api/webhooks/linq`, `/api/webhooks/stripe`).
-The only thing a deploy buys over this is surviving a closed laptop — which
-the free plan does not reliably give you either, since it spins down anyway.
 
 ### Fly.io (previous)
 
