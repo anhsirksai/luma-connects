@@ -210,20 +210,40 @@ nothing about the image changes.
 #      Stripe -> https://<service>.onrender.com/api/webhooks/stripe
 ```
 
-The blueprint pins `plan: starter` on purpose. Render's **free** instances
-spin down after ~15 minutes idle and have an **ephemeral** filesystem — that
-combination would both drop inbound webhooks on a cold start and wipe the
-SQLite file (and the `http_cache` that keeps repeat provider calls free) on
-every deploy. Credits cover the difference.
+> ⚠️ **The blueprint is currently on `plan: free`, which loses data.** Render's
+> free plan cannot attach a persistent disk, so `invite_finder.db` sits on an
+> ephemeral filesystem and is wiped on every deploy, restart, and wake from
+> idle spin-down (~15 min without traffic).
+>
+> For a service that takes payments this is a real failure, not a limitation:
+> a customer pays, Stripe fires `checkout.session.completed`, the service cold
+> starts with an empty database, `mark_order_paid()` finds no such order — and
+> you have taken money and delivered nothing. The `http_cache` is wiped with
+> it, so already-purchased enrichment gets bought from Apify/Perflo twice.
+>
+> Restoring durability means `plan: starter`, `numInstances: 1`, the `disk:`
+> block, and `INVITE_DB_PATH=/data/invite_finder.db` — all four are written
+> out in `render.yaml`'s header comment. The $50 hackathon credit covers the
+> cost, but **Render still requires a card on file** to select a paid plan,
+> which is what pushed this config to free in the first place.
 
-`numInstances: 1` is equally deliberate — a Render disk can only attach to a
-single instance, which matches what this app needs anyway (see the
-`--workers 1` note below).
+`numInstances: 1` (in the paid config) is not a cost saving — a Render disk
+can only attach to a single instance, which matches what this app needs
+anyway (see the `--workers 1` note below).
 
-For the hackathon itself, a tunnel to localhost (`cloudflared tunnel --url
-http://localhost:8000`) is faster than any deploy and works for both webhook
-providers. Deploy when you want the agent to keep earning after you close the
-laptop.
+### Tunnel to localhost (recommended while money is moving)
+
+Strictly better than the free plan for a live demo: no card, no cold starts,
+and SQLite persists on your own disk.
+
+```bash
+brew install cloudflared
+cloudflared tunnel --url http://localhost:8000   # prints a public https URL
+```
+
+Point both webhooks at that URL (`/api/webhooks/linq`, `/api/webhooks/stripe`).
+The only thing a deploy buys over this is surviving a closed laptop — which
+the free plan does not reliably give you either, since it spins down anyway.
 
 ### Fly.io (previous)
 

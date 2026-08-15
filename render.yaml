@@ -1,38 +1,51 @@
 # Render Blueprint for the Luma Connects FastAPI service.
 #
-# Chosen over Fly because this service must hold a stable public HTTPS URL to
-# receive Linq and Stripe webhooks. Deploy with: Render dashboard -> New ->
-# Blueprint -> point at this repo.
+# Deploy with: Render dashboard -> New -> Blueprint -> point at this repo.
 #
-# NOTE ON PLAN: `starter` is deliberate, not an upsell.
-#   - Render's free instances spin down after ~15 minutes idle. A cold start
-#     on an inbound webhook drops the payment or the message.
-#   - Free instances have an ephemeral filesystem, so the SQLite file (and
-#     with it the http_cache that keeps provider spend at zero on repeats)
-#     is wiped on every deploy and restart.
-# Hackathon credits cover this: https://credits-portal-mmdm.onrender.com/claim/terac-hackathon
+# ############################################################################
+# CURRENTLY ON THE FREE PLAN, WHICH LOSES DATA. READ THIS BEFORE TAKING MONEY.
+#
+# Render's free plan cannot attach a persistent disk, so the SQLite file sits
+# on an ephemeral filesystem. It is wiped on every deploy, every restart, and
+# every wake from idle spin-down (~15 min of no traffic). Two consequences:
+#
+#   1. A paid order can vanish before it is fulfilled. Customer pays, Stripe
+#      fires checkout.session.completed, the service cold-starts with an empty
+#      database, mark_order_paid() finds no such order and returns False. You
+#      have taken money and delivered nothing.
+#   2. http_cache is wiped with it, so already-purchased enrichment is bought
+#      again from Apify/Perflo. That is the margin, spent twice.
+#
+# This is acceptable ONLY for a demo where you control when payments happen.
+# For anything real, switch back to the paid config in the block below — the
+# $50 hackathon credit covers it, though Render still wants a card on file.
+#
+# For a live demo where money actually moves, prefer a tunnel to localhost:
+#     cloudflared tunnel --url http://localhost:8000
+# No card, no cold starts, and the SQLite file persists on your own disk.
+# ############################################################################
+#
+# TO SWITCH BACK TO DURABLE STORAGE, restore these three things:
+#     plan: starter
+#     numInstances: 1
+#     disk: {name: invite-finder-data, mountPath: /data, sizeGB: 1}
+# and set INVITE_DB_PATH back to /data/invite_finder.db.
 
 services:
   - type: web
     name: luma-connects-api
     runtime: docker
     dockerfilePath: ./Dockerfile
-    plan: starter
+    plan: free
     region: oregon
     healthCheckPath: /api/health
 
-    # A persistent disk can only attach to a single instance — which is what
-    # we want anyway: the pipeline runner uses in-process asyncio tasks and
-    # SQLite is a single writer (hence --workers 1 in the Dockerfile).
-    numInstances: 1
-    disk:
-      name: invite-finder-data
-      mountPath: /data
-      sizeGB: 1
+    # No `disk:` and no `numInstances:` — the free plan supports neither.
 
     envVars:
+      # Ephemeral. Survives nothing. See the warning above.
       - key: INVITE_DB_PATH
-        value: /data/invite_finder.db
+        value: /tmp/invite_finder.db
 
       # PUBLIC_BASE_URL is deliberately absent: Settings.from_env() falls back
       # to RENDER_EXTERNAL_URL, which Render injects with this service's real
