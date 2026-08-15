@@ -38,9 +38,17 @@ def upsert_person(
     avatar_url: str | None = None,
     bio_short: str | None = None,
     profile_text: str | None = None,
+    email: str | None = None,
+    phone: str | None = None,
+    x_url: str | None = None,
+    enrichment: dict[str, Any] | None = None,
 ) -> int:
     """Insert or merge a person, keyed by identity_key. Non-null new fields win;
-    existing non-null fields are preserved when the new value is None."""
+    existing non-null fields are preserved when the new value is None.
+
+    `enrichment` is shallow-merged rather than replaced, because enrichment
+    arrives one paid provider at a time (posts, then X, then contact) and each
+    pass must not discard what the previous one bought."""
     identity_key = compute_identity_key(
         linkedin_url=linkedin_url,
         luma_user_api_id=luma_user_api_id,
@@ -53,6 +61,9 @@ def upsert_person(
     now = now_iso()
 
     if existing:
+        existing_enrichment = json.loads(existing["enrichment_json"] or "{}")
+        if enrichment:
+            existing_enrichment.update(enrichment)
         merged = {
             "linkedin_url": linkedin_url or existing["linkedin_url"],
             "luma_user_api_id": luma_user_api_id or existing["luma_user_api_id"],
@@ -63,12 +74,16 @@ def upsert_person(
             "avatar_url": avatar_url or existing["avatar_url"],
             "bio_short": bio_short or existing["bio_short"],
             "profile_text": profile_text or existing["profile_text"],
+            "email": email or existing["email"],
+            "phone": phone or existing["phone"],
+            "x_url": x_url or existing["x_url"],
+            "enrichment_json": json.dumps(existing_enrichment) if existing_enrichment else None,
         }
         conn.execute(
             """
             UPDATE people SET linkedin_url=?, luma_user_api_id=?, name=?, headline=?,
               company=?, location_text=?, avatar_url=?, bio_short=?, profile_text=?,
-              updated_at=?
+              email=?, phone=?, x_url=?, enrichment_json=?, updated_at=?
             WHERE id=?
             """,
             (*merged.values(), now, existing["id"]),
@@ -80,12 +95,14 @@ def upsert_person(
         """
         INSERT INTO people
           (identity_key, linkedin_url, luma_user_api_id, name, headline, company,
-           location_text, avatar_url, bio_short, profile_text, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           location_text, avatar_url, bio_short, profile_text, email, phone, x_url,
+           enrichment_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             identity_key, linkedin_url, luma_user_api_id, name, headline, company,
-            location_text, avatar_url, bio_short, profile_text, now, now,
+            location_text, avatar_url, bio_short, profile_text, email, phone, x_url,
+            json.dumps(enrichment) if enrichment else None, now, now,
         ),
     )
     conn.commit()

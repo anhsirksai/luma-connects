@@ -1,0 +1,70 @@
+# Render Blueprint for the Luma Connects FastAPI service.
+#
+# Chosen over Fly because this service must hold a stable public HTTPS URL to
+# receive Linq and Stripe webhooks. Deploy with: Render dashboard -> New ->
+# Blueprint -> point at this repo.
+#
+# NOTE ON PLAN: `starter` is deliberate, not an upsell.
+#   - Render's free instances spin down after ~15 minutes idle. A cold start
+#     on an inbound webhook drops the payment or the message.
+#   - Free instances have an ephemeral filesystem, so the SQLite file (and
+#     with it the http_cache that keeps provider spend at zero on repeats)
+#     is wiped on every deploy and restart.
+# Hackathon credits cover this: https://credits-portal-mmdm.onrender.com/claim/terac-hackathon
+
+services:
+  - type: web
+    name: luma-connects-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    region: oregon
+    healthCheckPath: /api/health
+
+    # A persistent disk can only attach to a single instance — which is what
+    # we want anyway: the pipeline runner uses in-process asyncio tasks and
+    # SQLite is a single writer (hence --workers 1 in the Dockerfile).
+    numInstances: 1
+    disk:
+      name: invite-finder-data
+      mountPath: /data
+      sizeGB: 1
+
+    envVars:
+      - key: INVITE_DB_PATH
+        value: /data/invite_finder.db
+
+      # PUBLIC_BASE_URL is deliberately absent: Settings.from_env() falls back
+      # to RENDER_EXTERNAL_URL, which Render injects with this service's real
+      # public URL. Hardcoding a guess here would silently be wrong whenever
+      # Render appends a suffix to the service name.
+      #
+      # INVITE_CORS_ORIGINS is also absent — set it to the *frontend's* origin
+      # once that is deployed. It is not this service's own URL.
+
+      # Secrets: sync:false means Render prompts for these at deploy time and
+      # stores them itself, so nothing sensitive lands in the repo.
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: BRIGHTDATA_API_KEY
+        sync: false
+      - key: BRIGHTDATA_SERP_ZONE
+        sync: false
+      - key: BRIGHTDATA_UNLOCKER_ZONE
+        sync: false
+      - key: LINQ_API_KEY
+        sync: false
+      - key: LINQ_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PAYMENT_LINK
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: APIFY_TOKEN
+        sync: false
+      - key: PERFLO_AGENT_TOKEN
+        sync: false
+      - key: PERFLO_MANDATE_ID
+        sync: false
+      - key: ENRICHMENT_BUDGET_CENTS
+        value: "500"

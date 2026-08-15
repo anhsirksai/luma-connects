@@ -154,11 +154,22 @@ Bright Data cache entries (Luma: 6h, SERP/profiles: 30d — see
 | `INVITE_CORS_ORIGINS` | no (default `http://localhost:3000`) | comma-separated allowed origins |
 | `INVITE_API_BASE_URL` | frontend, server-side | backend URL for Next.js server components |
 | `NEXT_PUBLIC_INVITE_API_BASE_URL` | frontend, client-side | backend URL baked into the browser bundle at build time |
+| `LINQ_API_KEY` | messaging | Linq Partner API auth; blank = webhook parses but sends no reply |
+| `LINQ_WEBHOOK_SECRET` | messaging | Standard Webhooks secret; blank disables verification (dev only) |
+| `LINQ_API_BASE_URL` | no (default `https://api.linqapp.com/api/partner/v3`) | Linq API root |
+| `STRIPE_PAYMENT_LINK` | payments | the single Payment Link; order rides on `?client_reference_id=` |
+| `STRIPE_WEBHOOK_SECRET` | payments | endpoint signing secret; blank disables verification (dev only) |
+| `APIFY_TOKEN` | enrichment | channel B without KYC — profile search, posts |
+| `PERFLO_AGENT_TOKEN` | enrichment | agent token for the Perflo service marketplace |
+| `PERFLO_MANDATE_ID` | enrichment | the budget-capped mandate purchases are billed to |
+| `PERFLO_API_BASE_URL` | no (default `https://api.perflo.ai`) | Perflo API root |
+| `ENRICHMENT_BUDGET_CENTS` | no (default `500`) | hard spend ceiling per process, independent of the mandate |
+| `PUBLIC_BASE_URL` | messaging | public HTTPS base for webhook callbacks (ngrok/cloudflared in dev) |
 
 ## Testing
 
 ```bash
-.venv/bin/pytest                      # backend: 70 tests, no network/LLM calls
+.venv/bin/pytest                      # backend: 116 tests, no network/LLM calls
 cd invite_viewer && npm run lint && npm run build   # frontend
 ```
 
@@ -167,7 +178,54 @@ No test hits Bright Data, OpenAI, or the network — the pipeline's LLM calls
 and the SERP discovery `Runner.run`) are stubbed at the function boundary in
 `tests/test_pipeline.py`, `tests/test_chat.py`, and `tests/test_api.py`.
 
-## Deploying to Fly.io
+## Deploying
+
+Two supported targets. **Render is the current one** — Fly's free allowance
+ran out, and Render gives the same thing (Docker web service + persistent
+disk) with hackathon credits behind it.
+
+Whichever you pick, the requirement is the same and it is not negotiable: a
+service that stays up, on a stable public HTTPS URL. Linq and Stripe push
+webhooks *to* this app, so anything that sleeps when idle drops payments.
+
+> **Not Superserve or sandbox0.** Both are agent *sandboxes* — isolated VMs an
+> agent gets to execute code in, designed to pause between turns and resume.
+> That is the opposite of a webhook listener. They would suit a future split
+> where enrichment runs as a detached worker; they cannot host this API.
+
+### Render (current)
+
+`render.yaml` at the repo root is a Blueprint: Render dashboard -> New ->
+Blueprint -> point it at this repo. It builds the same root `Dockerfile`, so
+nothing about the image changes.
+
+```bash
+# 1. Claim the hackathon credits first
+#    https://credits-portal-mmdm.onrender.com/claim/terac-hackathon
+# 2. New -> Blueprint -> select this repo -> Apply
+# 3. Render prompts for every `sync: false` secret in render.yaml
+#    (OPENAI_API_KEY, LINQ_*, STRIPE_*, APIFY_TOKEN, PERFLO_*)
+# 4. Point the webhooks at the deployed URL:
+#      Linq   -> https://<service>.onrender.com/api/webhooks/linq
+#      Stripe -> https://<service>.onrender.com/api/webhooks/stripe
+```
+
+The blueprint pins `plan: starter` on purpose. Render's **free** instances
+spin down after ~15 minutes idle and have an **ephemeral** filesystem — that
+combination would both drop inbound webhooks on a cold start and wipe the
+SQLite file (and the `http_cache` that keeps repeat provider calls free) on
+every deploy. Credits cover the difference.
+
+`numInstances: 1` is equally deliberate — a Render disk can only attach to a
+single instance, which matches what this app needs anyway (see the
+`--workers 1` note below).
+
+For the hackathon itself, a tunnel to localhost (`cloudflared tunnel --url
+http://localhost:8000`) is faster than any deploy and works for both webhook
+providers. Deploy when you want the agent to keep earning after you close the
+laptop.
+
+### Fly.io (previous)
 
 Two apps, each with its own `Dockerfile` + `fly.toml`, both sized for Fly's
 free monthly allowance (`shared-cpu-1x` / 256MB, scale-to-zero):

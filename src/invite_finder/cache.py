@@ -14,12 +14,31 @@ from invite_finder.store import cache_store
 TRACKING_PARAM_PREFIXES = ("utm_",)
 TRACKING_PARAMS = {"trk", "fbclid", "gclid", "mc_cid", "mc_eid"}
 
+# Credentials that ride in a query string (Apify accepts ?token=). They must
+# never reach the fingerprint or the stored url column: rotating a token would
+# otherwise invalidate the whole cache and re-bill every lookup, and the secret
+# would sit in plaintext in the DB.
+SECRET_QUERY_PARAMS = {"token", "api_key", "apikey", "access_token"}
+
+# Request-body keys that vary per call without changing the response. `zone`
+# is Bright Data's account routing; `mandate_id` and `max_price` are Perflo's
+# per-purchase authorization. Leave them in the fingerprint and every call is
+# a cache miss — and on a pay-per-call provider every miss is a charge.
+VOLATILE_PAYLOAD_KEYS = {"zone", "mandate_id", "max_price"}
+
 TTL_BY_KIND: dict[str, timedelta | None] = {
     "luma_api": timedelta(hours=6),
     "luma_page": timedelta(hours=24),
     "serp": timedelta(days=30),
     "linkedin_profile": timedelta(days=30),
     "page": timedelta(days=7),
+    # Paid channel-B kinds. Contact data changes slowly and costs the most, so
+    # it gets the longest life; posts are the point of being fresh.
+    "linkedin_search": timedelta(days=30),
+    "linkedin_posts": timedelta(days=3),
+    "x_profile": timedelta(days=7),
+    "contact_enrich": timedelta(days=90),
+    "email_verify": timedelta(days=90),
 }
 
 
@@ -56,15 +75,38 @@ def derive_kind(url: str) -> str:
     return "page"
 
 
-def canonical_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    canonical = {k: v for k, v in payload.items() if k != "zone"}
+def strip_secret_params(url: str) -> str:
+    """Remove credential-bearing query params from a URL."""
+    parts = urlsplit(url)
+    if not parts.query:
+        return url
+    kept = [
+        (k, v)
+        for k, v in parse_qsl(parts.query, keep_blank_values=True)
+        if k.lower() not in SECRET_QUERY_PARAMS
+    ]
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(kept), ""))
+
+
+def canonical_payload(
+    payload: dict[str, Any], *, endpoint: str | None = None
+) -> dict[str, Any]:
+    canonical = {k: v for k, v in payload.items() if k not in VOLATILE_PAYLOAD_KEYS}
     if "url" in canonical and isinstance(canonical["url"], str):
+        # Bright Data shape: the target is inside the body, so the body alone
+        # identifies the request.
         canonical["url"] = normalize_url(canonical["url"])
+    elif endpoint:
+        # Channel-B shape: the body is the provider's input document and the
+        # target lives in the endpoint (which actor, which Perflo route). Fold
+        # it in, or two different actors called with identical input would
+        # collide on one fingerprint and serve each other's cached answer.
+        canonical["__endpoint"] = normalize_url(strip_secret_params(endpoint))
     return canonical
 
 
-def fingerprint(payload: dict[str, Any]) -> str:
-    canonical = canonical_payload(payload)
+def fingerprint(payload: dict[str, Any], *, endpoint: str | None = None) -> str:
+    canonical = canonical_payload(payload, endpoint=endpoint)
     encoded = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
@@ -125,14 +167,28 @@ class CachingSession(requests.Session):
         self.last_kind: str | None = None
         self.last_url: str | None = None
 
-    def request(self, method: str, url: str, *, json: Any = None, **kwargs: Any) -> requests.Response:  # type: ignore[override]
+    def request(  # type: ignore[override]
+        self,
+        method: str,
+        url: str,
+        *,
+        json: Any = None,
+        cache_kind: str | None = None,
+        **kwargs: Any,
+    ) -> requests.Response:
+        # cache_kind is ours, not requests' — it must never reach super().
         if method.upper() != "POST" or not isinstance(json, dict):
             return super().request(method, url, json=json, **kwargs)
 
         payload = json
-        target_url = payload.get("url", url)
-        kind = derive_kind(str(target_url))
-        fp = fingerprint(payload)
+        # Bright Data carries its target inside the body; channel-B providers
+        # carry it in the endpoint. Only the latter needs the endpoint folded
+        # into the cache key.
+        body_url = payload.get("url")
+        endpoint = None if isinstance(body_url, str) else url
+        target_url = body_url if isinstance(body_url, str) else strip_secret_params(url)
+        kind = cache_kind or derive_kind(str(target_url))
+        fp = fingerprint(payload, endpoint=endpoint)
         self.last_kind = kind
         self.last_url = str(target_url)
 
@@ -158,7 +214,7 @@ class CachingSession(requests.Session):
             fingerprint=fp,
             kind=kind,
             url=str(target_url),
-            request_json=json_module_dumps(canonical_payload(payload)),
+            request_json=json_module_dumps(canonical_payload(payload, endpoint=endpoint)),
             status_code=response.status_code,
             content_type=response.headers.get("content-type"),
             body=response.text,

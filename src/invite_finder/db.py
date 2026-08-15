@@ -151,6 +151,83 @@ MIGRATIONS: list[tuple[int, str]] = [
         CREATE INDEX idx_chat_messages_thread ON chat_messages(thread_id, id);
         """,
     ),
+    (
+        2,
+        """
+        -- Enrichment fields. Everything beyond a LinkedIn headline arrives
+        -- from a paid per-call provider, so these are filled in incrementally
+        -- by upsert_person's merge semantics rather than in one pass.
+        ALTER TABLE people ADD COLUMN email TEXT;
+        ALTER TABLE people ADD COLUMN phone TEXT;
+        ALTER TABLE people ADD COLUMN x_url TEXT;
+        ALTER TABLE people ADD COLUMN enrichment_json TEXT;
+
+        -- A customer is identified by the messaging handle they text from.
+        CREATE TABLE customers (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          handle        TEXT NOT NULL UNIQUE,
+          chat_id       TEXT,
+          first_seen_at TEXT NOT NULL,
+          last_seen_at  TEXT NOT NULL
+        );
+
+        CREATE TABLE orders (
+          id                INTEGER PRIMARY KEY AUTOINCREMENT,
+          customer_id       INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+          event_id          INTEGER REFERENCES events(id) ON DELETE SET NULL,
+          tier              TEXT NOT NULL,
+          person_count      INTEGER NOT NULL,
+          amount_cents      INTEGER NOT NULL,
+          status            TEXT NOT NULL DEFAULT 'pending',
+          stripe_session_id TEXT,
+          created_at        TEXT NOT NULL,
+          paid_at           TEXT,
+          delivered_at      TEXT
+        );
+        CREATE INDEX idx_orders_customer ON orders(customer_id, created_at);
+        CREATE INDEX idx_orders_status ON orders(status);
+
+        CREATE TABLE entitlements (
+          customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+          event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+          tier        TEXT NOT NULL,
+          order_id    INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+          granted_at  TEXT NOT NULL,
+          PRIMARY KEY (customer_id, event_id, tier)
+        );
+
+        -- Checked before every outbound send. An address here is never
+        -- contacted again on that channel, whatever the campaign.
+        CREATE TABLE suppressions (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          channel    TEXT NOT NULL,
+          address    TEXT NOT NULL,
+          reason     TEXT,
+          created_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX idx_suppressions_addr ON suppressions(channel, address);
+
+        -- The cost ledger. Every paid provider call lands here, quoted before
+        -- it is bought, so spend can be compared against orders revenue.
+        CREATE TABLE service_purchases (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          capability    TEXT NOT NULL,
+          provider      TEXT NOT NULL,
+          channel       TEXT NOT NULL,
+          quote_cents   INTEGER,
+          charged_cents INTEGER,
+          purchase_id   TEXT,
+          status        TEXT NOT NULL,
+          cache_hit     INTEGER NOT NULL DEFAULT 0,
+          person_id     INTEGER REFERENCES people(id) ON DELETE SET NULL,
+          order_id      INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+          error         TEXT,
+          created_at    TEXT NOT NULL
+        );
+        CREATE INDEX idx_service_purchases_created ON service_purchases(created_at);
+        CREATE INDEX idx_service_purchases_capability ON service_purchases(capability);
+        """,
+    ),
 ]
 
 

@@ -17,7 +17,9 @@ def test_migrations_apply_idempotently() -> None:
     version_after = conn.execute(
         "SELECT MAX(version) AS v FROM schema_version"
     ).fetchone()["v"]
-    assert version_before == version_after == 1
+    # Compare against the migration list rather than a literal, so adding a
+    # migration doesn't require editing this test.
+    assert version_before == version_after == db.MIGRATIONS[-1][0]
 
 
 def _make_event(conn) -> int:

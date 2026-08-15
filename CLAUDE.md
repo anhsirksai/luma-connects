@@ -66,7 +66,7 @@ requirement, not an optimization — don't bypass or weaken it.
 ## Testing
 
 ```bash
-.venv/bin/pytest                                    # 70 tests, zero network/LLM calls
+.venv/bin/pytest                                    # 116 tests, zero network/LLM calls
 cd invite_viewer && npm run lint && npm run build
 ```
 
@@ -101,12 +101,12 @@ pattern before adding new LLM-calling code.
 
 ## Status
 
-Fully built, tested (70 backend tests, frontend lint/build clean), and
-browser-verified end-to-end against real OpenAI credentials. Fly.io deploy
-configs exist (`Dockerfile` + `fly.toml` at the repo root and in
-`invite_viewer/`, sized for the free tier) but nothing is deployed yet —
-blocked on the user adding a payment method to their Fly account (trial
-ended). Historical planning docs (`docs/bright-data-gtm-my-events-proposal.md`,
+Fully built, tested (116 backend tests, frontend lint/build clean), and
+browser-verified end-to-end against real OpenAI credentials. **Deploy target is
+Render** (`render.yaml` Blueprint, same root `Dockerfile`); Fly configs are
+still present but that account's free allowance is exhausted. The service must
+stay always-on with a stable public URL — it receives Linq and Stripe webhooks,
+so scale-to-zero and idle-spindown both drop payments. Historical planning docs (`docs/bright-data-gtm-my-events-proposal.md`,
 `docs/event-room-snapshot-plan.md`) predate the "Luma Connects" rename and
 still say "GTM My Events" — that's intentional, they're records of what was
 proposed/planned at the time, not live branding.

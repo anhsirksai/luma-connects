@@ -12,6 +12,7 @@ from invite_finder.api.deps import get_settings
 from invite_finder.api.routes_chat import router as chat_router
 from invite_finder.api.routes_events import router as events_router
 from invite_finder.api.routes_runs import router as runs_router
+from invite_finder.api.routes_webhooks import router as webhooks_router
 from invite_finder.api.schemas import HealthResponse
 from invite_finder.brightdata import BrightDataError
 from invite_finder.cache import CacheMiss
@@ -64,6 +65,7 @@ def create_app() -> FastAPI:
     app.include_router(events_router)
     app.include_router(runs_router)
     app.include_router(chat_router)
+    app.include_router(webhooks_router)
 
     @app.exception_handler(LumaUrlError)
     async def _luma_url_error(request: Request, exc: LumaUrlError) -> JSONResponse:

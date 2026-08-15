@@ -56,6 +56,26 @@ class Settings:
     invite_db_path: str = "data/private/invite_finder.db"
     invite_offline: bool = False
     invite_cors_origins: str = "http://localhost:3000"
+    # Messaging front door (Linq). Empty means the webhook route still parses
+    # and stores, but no reply is delivered — which is what tests exercise.
+    linq_api_key: str = ""
+    linq_api_base_url: str = "https://api.linqapp.com/api/partner/v3"
+    linq_webhook_secret: str = ""
+    # Money in. One Payment Link is reused for every transaction; the order is
+    # carried on it as ?client_reference_id=<order_id>.
+    stripe_payment_link: str = ""
+    stripe_webhook_secret: str = ""
+    # Money out / channel B. Perflo brokers pay-per-call services; Apify is the
+    # same catalogue reachable directly with a token and no KYC.
+    perflo_api_base_url: str = "https://api.perflo.ai"
+    perflo_agent_token: str = ""
+    perflo_mandate_id: str = ""
+    apify_token: str = ""
+    apify_api_base_url: str = "https://api.apify.com/v2"
+    # Hard ceiling on what one run may spend, independent of the Perflo
+    # mandate, so a bug cannot drain the budget even if the mandate is generous.
+    enrichment_budget_cents: int = 500
+    public_base_url: str = "http://localhost:8000"
 
     @classmethod
     def from_env(cls, offline: bool | None = None) -> "Settings":
@@ -85,4 +105,26 @@ class Settings:
             invite_db_path=os.getenv("INVITE_DB_PATH", "data/private/invite_finder.db"),
             invite_offline=is_offline,
             invite_cors_origins=os.getenv("INVITE_CORS_ORIGINS", "http://localhost:3000"),
+            linq_api_key=os.getenv("LINQ_API_KEY", ""),
+            linq_api_base_url=os.getenv(
+                "LINQ_API_BASE_URL", "https://api.linqapp.com/api/partner/v3"
+            ),
+            linq_webhook_secret=os.getenv("LINQ_WEBHOOK_SECRET", ""),
+            stripe_payment_link=os.getenv("STRIPE_PAYMENT_LINK", ""),
+            stripe_webhook_secret=os.getenv("STRIPE_WEBHOOK_SECRET", ""),
+            perflo_api_base_url=os.getenv("PERFLO_API_BASE_URL", "https://api.perflo.ai"),
+            perflo_agent_token=os.getenv("PERFLO_AGENT_TOKEN", ""),
+            perflo_mandate_id=os.getenv("PERFLO_MANDATE_ID", ""),
+            apify_token=os.getenv("APIFY_TOKEN", ""),
+            apify_api_base_url=os.getenv("APIFY_API_BASE_URL", "https://api.apify.com/v2"),
+            enrichment_budget_cents=_int_env("ENRICHMENT_BUDGET_CENTS", 500),
+            # RENDER_EXTERNAL_URL is injected by Render with the service's real
+            # public URL. Falling back to it means the deployed app knows its
+            # own address without anyone hardcoding a guess that has to be
+            # corrected after the first deploy.
+            public_base_url=(
+                os.getenv("PUBLIC_BASE_URL")
+                or os.getenv("RENDER_EXTERNAL_URL")
+                or "http://localhost:8000"
+            ),
         )
