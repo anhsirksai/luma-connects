@@ -4,7 +4,7 @@ import sqlite3
 from collections.abc import Iterator
 from functools import lru_cache
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Query
 
 from invite_finder import auth, db
 from invite_finder.brightdata import BrightDataClient
@@ -86,6 +86,36 @@ def require_admin(
 
     token = auth.bearer_from_header(authorization) or (x_admin_token or "").strip()
     if not auth.session_is_valid(conn, token):
+        raise HTTPException(
+            status_code=401,
+            detail="Admin session required. POST /api/auth/request-code to get a passcode.",
+        )
+
+
+def require_admin_stream(
+    token: str | None = Query(default=None),
+    authorization: str | None = Header(default=None),
+    x_admin_token: str | None = Header(default=None),
+    conn: sqlite3.Connection = Depends(get_conn),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    """Same gate as require_admin, with one extra source: a `token` query
+    param. Reserved for the SSE run-progress stream — the browser's
+    EventSource API cannot set custom headers at all, so a header-only check
+    would silently break live progress the moment the gate is on. Deliberately
+    not folded into require_admin: that would let a token ride in the query
+    string of every admin route, which is more places for it to land in
+    server logs and browser history than the one route that actually needs it.
+    """
+    if not settings.admin_phone:
+        return
+
+    candidate = (
+        auth.bearer_from_header(authorization)
+        or (x_admin_token or "").strip()
+        or (token or "").strip()
+    )
+    if not auth.session_is_valid(conn, candidate):
         raise HTTPException(
             status_code=401,
             detail="Admin session required. POST /api/auth/request-code to get a passcode.",

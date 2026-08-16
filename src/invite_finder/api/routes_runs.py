@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sse_starlette.sse import EventSourceResponse
 
 from invite_finder import db
-from invite_finder.api.deps import get_conn, get_settings
+from invite_finder.api.deps import get_conn, get_settings, require_admin, require_admin_stream
 from invite_finder.api.schemas import RunStatusOut
 from invite_finder.api.serialize import build_run_status
 from invite_finder.config import Settings
@@ -20,7 +20,7 @@ POLL_INTERVAL_SECONDS = 0.4
 TERMINAL_STATUSES = {"succeeded", "failed", "cancelled"}
 
 
-@router.get("/runs/{run_id}", response_model=RunStatusOut)
+@router.get("/runs/{run_id}", response_model=RunStatusOut, dependencies=[Depends(require_admin)])
 def get_run(run_id: int, conn: sqlite3.Connection = Depends(get_conn)) -> RunStatusOut:
     run = run_store.get_run(conn, run_id)
     if run is None:
@@ -28,7 +28,7 @@ def get_run(run_id: int, conn: sqlite3.Connection = Depends(get_conn)) -> RunSta
     return build_run_status(conn, run)
 
 
-@router.get("/runs/{run_id}/stream")
+@router.get("/runs/{run_id}/stream", dependencies=[Depends(require_admin_stream)])
 async def stream_run(
     run_id: int,
     after_seq: int = Query(default=0, ge=0),

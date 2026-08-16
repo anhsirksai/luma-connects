@@ -81,8 +81,14 @@ def create_app() -> FastAPI:
     # Everything serving person data sits behind the passcode gate.
     admin_only = [Depends(require_admin)]
     app.include_router(events_router, dependencies=admin_only)
-    app.include_router(runs_router, dependencies=admin_only)
     app.include_router(chat_router, dependencies=admin_only)
+
+    # runs_router is NOT put on the blanket gate: its /stream route is read by
+    # the browser's EventSource API, which cannot set custom headers at all.
+    # Both of its routes self-gate individually instead — GET /runs/{id} with
+    # the normal header-based require_admin, and /stream with
+    # require_admin_stream, which also accepts a `token` query param.
+    app.include_router(runs_router)
 
     # Webhooks must NOT be gated: Stripe and Linq call them machine-to-machine
     # and cannot present a passcode. They authenticate by signature instead,

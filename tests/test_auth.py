@@ -261,6 +261,55 @@ def test_webhooks_are_not_gated(ctx) -> None:
     assert linq.status_code == 200
 
 
+def _make_terminal_run(conn) -> int:
+    """A run that reaches a terminal status before the stream opens, so
+    stream_run's generator closes on its own instead of blocking the test."""
+    from invite_finder.store import run_store
+
+    run_id = run_store.create_run(conn, event_id=None, input_url="https://lu.ma/x")
+    run_store.update_status(conn, run_id, status="running", started=True)
+    run_store.append_event(conn, run_id, type_="phase", message="Fetching")
+    run_store.update_status(conn, run_id, status="succeeded", phase="done", finished=True)
+    return run_id
+
+
+def test_stream_route_rejects_no_credential(ctx) -> None:
+    run_id = _make_terminal_run(ctx["conn"])
+    response = ctx["client"].get(f"/api/runs/{run_id}/stream")
+    assert response.status_code == 401
+
+
+def test_stream_route_accepts_a_query_token_because_eventsource_cannot_set_headers(
+    ctx,
+) -> None:
+    """The one deliberate exception to header-only auth: the browser's
+    EventSource API cannot set custom headers, so without this the live
+    run-progress view would silently break the moment the gate is on."""
+    run_id = _make_terminal_run(ctx["conn"])
+    token = login(ctx)
+    with ctx["client"].stream(
+        "GET", f"/api/runs/{run_id}/stream", params={"token": token}
+    ) as response:
+        assert response.status_code == 200
+
+
+def test_stream_route_still_accepts_the_header_too(ctx) -> None:
+    run_id = _make_terminal_run(ctx["conn"])
+    token = login(ctx)
+    with ctx["client"].stream(
+        "GET", f"/api/runs/{run_id}/stream", headers={"Authorization": f"Bearer {token}"}
+    ) as response:
+        assert response.status_code == 200
+
+
+def test_query_token_fallback_is_scoped_to_the_stream_route_only(ctx) -> None:
+    """The query-param fallback must not leak onto ordinary admin routes —
+    that would put the token in more logs and browser history than needed."""
+    token = login(ctx)
+    response = ctx["client"].get("/api/events", params={"token": token})
+    assert response.status_code == 401
+
+
 def test_health_is_open_and_reports_the_gate(ctx) -> None:
     body = ctx["client"].get("/api/health").json()
     assert body["admin_auth"] == "on"

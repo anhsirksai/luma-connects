@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -9,19 +10,52 @@ import { ApiError, getEvent } from "../../lib/api";
 
 export const dynamic = "force-dynamic";
 
+// See the matching helper in app/events/page.tsx for why next/headers is
+// safe to import here (a page.tsx default export is always server-only) but
+// must never be imported from lib/api.ts, which is shared with the client.
+async function adminAuthHeader(): Promise<string | undefined> {
+  const store = await cookies();
+  const token = store.get("luma_admin_token")?.value;
+  return token ? `Bearer ${token}` : undefined;
+}
+
 export default async function EventDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const authHeader = await adminAuthHeader();
 
   let detail;
   try {
-    detail = await getEvent(id);
+    detail = await getEvent(id, authHeader);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) {
       notFound();
+    }
+    if (error instanceof ApiError && error.status === 401) {
+      return (
+        <main className="min-h-screen bg-[#f4f7fb] px-4 py-10 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[880px]">
+            <Link href="/events" className="text-sm font-semibold text-[#3d7ffc] hover:underline">
+              &larr; All events
+            </Link>
+            <div className="mt-6 rounded-xl border border-[#dbe3ee] bg-white p-6 text-center">
+              <p className="text-sm font-semibold text-[#091b36]">Sign in required</p>
+              <p className="mt-1 text-sm text-[#5b6b82]">
+                Your session has expired, or this API is passcode-protected.
+              </p>
+              <Link
+                href="/login"
+                className="mt-4 inline-flex items-center justify-center rounded-lg bg-[#3d7ffc] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#2f6ee8]"
+              >
+                Log in
+              </Link>
+            </div>
+          </div>
+        </main>
+      );
     }
     return (
       <main className="min-h-screen bg-[#f4f7fb] px-4 py-10 sm:px-6 lg:px-8">
