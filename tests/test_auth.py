@@ -8,10 +8,10 @@ from fastapi.testclient import TestClient
 from invite_finder import auth, db
 from invite_finder.api import deps
 from invite_finder.api.app import app
-from invite_finder.config import Settings
+from invite_finder.config import ConfigError, Settings
 from invite_finder.conversation import ConversationDeps
 from invite_finder.runner import RunManager
-from invite_finder.store import auth_store
+from invite_finder.store import auth_store, run_store
 
 
 class FakeLinq:
@@ -356,3 +356,108 @@ def test_generated_codes_are_six_digits() -> None:
     for _ in range(50):
         code = auth.generate_code()
         assert len(code) == 6 and code.isdigit()
+
+
+# --- the ADMIN_AUTH toggle ---------------------------------------------------
+
+
+def _from_env(monkeypatch, **env) -> Settings:
+    """Settings.from_env() with an explicit environment.
+
+    PUBLIC_BASE_URL and RENDER_EXTERNAL_URL are always pinned, never inherited:
+    a developer's .env points PUBLIC_BASE_URL at a live tunnel, and these tests
+    are about exactly that distinction. offline=True keeps the Bright Data
+    keys out of it.
+    """
+    monkeypatch.delenv("RENDER_EXTERNAL_URL", raising=False)
+    monkeypatch.setenv("PUBLIC_BASE_URL", "http://localhost:8000")
+    for key, value in env.items():
+        if value is None:
+            monkeypatch.delenv(key, raising=False)
+        else:
+            monkeypatch.setenv(key, value)
+    return Settings.from_env(offline=True)
+
+
+def test_admin_auth_off_opens_the_data_routes(ctx) -> None:
+    """The local development switch: gate off even though a phone is set."""
+    ctx["state"]["settings"] = Settings(
+        invite_db_path=ctx["state"]["settings"].invite_db_path,
+        invite_offline=True,
+        admin_phone="+14155550000",
+        linq_api_key="test-key",
+        admin_auth_mode="off",
+    )
+    assert ctx["client"].get("/api/events").status_code == 200
+    assert ctx["client"].get("/api/health").json()["admin_auth"] == "off"
+
+
+def test_admin_auth_off_opens_the_stream_route_too(ctx) -> None:
+    """require_admin_stream is a separate function; it must follow the toggle."""
+    ctx["state"]["settings"] = Settings(
+        invite_db_path=ctx["state"]["settings"].invite_db_path,
+        invite_offline=True,
+        admin_phone="+14155550000",
+        admin_auth_mode="off",
+    )
+    run_id = run_store.create_run(ctx["conn"], event_id=None, input_url="https://luma.com/x")
+    run_store.update_status(ctx["conn"], run_id, status="succeeded")
+    with ctx["client"].stream("GET", f"/api/runs/{run_id}/stream") as response:
+        assert response.status_code == 200
+
+
+def test_admin_auth_on_gates_even_the_paths_auto_would_open() -> None:
+    """"auto" infers the gate from ADMIN_PHONE; "on" states it."""
+    settings = Settings(admin_phone="+14155550000", admin_auth_mode="on")
+    assert settings.admin_auth_enabled is True
+    assert Settings(admin_phone="", admin_auth_mode="auto").admin_auth_enabled is False
+    assert Settings(admin_phone="+1", admin_auth_mode="auto").admin_auth_enabled is True
+
+
+def test_admin_auth_defaults_to_auto(monkeypatch) -> None:
+    """Unset ADMIN_AUTH must not change what the deployed service does today."""
+    settings = _from_env(monkeypatch, ADMIN_AUTH=None, ADMIN_PHONE="+14155550000")
+    assert settings.admin_auth_mode == "auto"
+    assert settings.admin_auth_enabled is True
+
+
+def test_admin_auth_on_without_a_phone_is_refused(monkeypatch) -> None:
+    """The gate on with no way to deliver a code is a guaranteed lockout."""
+    with pytest.raises(ConfigError, match="ADMIN_AUTH=on requires ADMIN_PHONE"):
+        _from_env(monkeypatch, ADMIN_AUTH="on", ADMIN_PHONE="")
+
+
+def test_admin_auth_off_is_refused_on_a_public_base_url(monkeypatch) -> None:
+    """A tunnel forwards to localhost but is a public address — the exact case
+    the gate exists for, so the switch must not be honoured there."""
+    with pytest.raises(ConfigError, match="only allowed when the service is bound"):
+        _from_env(
+            monkeypatch,
+            ADMIN_AUTH="off",
+            PUBLIC_BASE_URL="https://example.trycloudflare.com",
+        )
+
+
+def test_admin_auth_off_is_refused_on_render(monkeypatch) -> None:
+    """Overriding PUBLIC_BASE_URL back to localhost must not buy a way through:
+    RENDER_EXTERNAL_URL alone proves this is a public deployment."""
+    with pytest.raises(ConfigError, match="RENDER_EXTERNAL_URL is set"):
+        _from_env(
+            monkeypatch,
+            ADMIN_AUTH="off",
+            PUBLIC_BASE_URL="http://localhost:8000",
+            RENDER_EXTERNAL_URL="https://luma-connects-api.onrender.com",
+        )
+
+
+def test_admin_auth_off_is_allowed_on_every_local_hostname(monkeypatch) -> None:
+    for url in ("http://localhost:8000", "http://127.0.0.1:8000", "http://[::1]:8000"):
+        settings = _from_env(monkeypatch, ADMIN_AUTH="off", PUBLIC_BASE_URL=url)
+        assert settings.admin_auth_enabled is False, url
+
+
+def test_unknown_admin_auth_value_is_refused(monkeypatch) -> None:
+    """Fail loudly rather than silently falling back to a gate that is on or
+    off — a typo here decides whether contact data is public."""
+    with pytest.raises(ConfigError, match="ADMIN_AUTH must be one of"):
+        _from_env(monkeypatch, ADMIN_AUTH="false")

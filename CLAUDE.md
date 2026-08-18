@@ -66,7 +66,7 @@ requirement, not an optimization — don't bypass or weaken it.
 ## Testing
 
 ```bash
-.venv/bin/pytest                                    # 143 tests, zero network/LLM calls
+.venv/bin/pytest                                    # 156 tests, zero network/LLM calls
 cd invite_viewer && npm run lint && npm run build
 ```
 
@@ -95,14 +95,22 @@ pattern before adding new LLM-calling code.
   `check_same_thread=False` in `db.py` deliberately, because FastAPI can
   resolve a sync dependency in a worker thread and use it from an async
   endpoint.
+- **The admin gate is `settings.admin_auth_enabled`, not `ADMIN_PHONE`**:
+  `ADMIN_AUTH=auto|on|off` overrides the inferred rule (`config.py`). `off` is
+  the local-development switch — `./scripts/dev-open.sh` — and
+  `Settings.from_env()` refuses to start with it unless `PUBLIC_BASE_URL` is
+  localhost *and* `RENDER_EXTERNAL_URL` is absent. Don't re-add a bare
+  `if not settings.admin_phone` check; it silently ignores the toggle.
 - **`data_format="markdown"` on JSON endpoints**: `unlock_url`'s default
   `data_format` is `"markdown"`, which corrupts JSON responses (e.g.
   `api.lu.ma`). Always pass `data_format=None` explicitly for JSON targets.
 
 ## Status
 
-Fully built, tested (143 backend tests, frontend lint/build clean), and
-browser-verified end-to-end against real OpenAI credentials. **Deploy target is
+Fully built, tested (156 backend tests, frontend lint/build clean), and
+browser-verified end-to-end against real OpenAI credentials. Known unfixed
+issues are catalogued in [`docs/blindspots.md`](docs/blindspots.md) — read it
+before touching payments, webhooks, or the enrichment budget. **Deploy target is
 Render** (`render.yaml` Blueprint, same root `Dockerfile`); Fly configs are
 still present but that account's free allowance is exhausted. The service must
 stay always-on with a stable public URL — it receives Linq and Stripe webhooks,

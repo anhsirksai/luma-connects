@@ -76,12 +76,15 @@ def require_admin(
 ) -> None:
     """Gate a route behind a passcode-issued session.
 
-    When ADMIN_PHONE is unset the gate is open — there is no way to deliver a
-    passcode, so enforcing it would lock the operator out of their own API.
-    That is safe on localhost and dangerous on a public URL, which is why
-    startup logs a warning and /api/health reports `admin_auth` as "off".
+    Whether the gate is enforced is Settings.admin_auth_enabled, not the phone
+    number directly: ADMIN_AUTH=off turns it off for local development, and by
+    default it is on exactly when ADMIN_PHONE is set (with no phone there is no
+    way to deliver a passcode, so enforcing it would lock the operator out of
+    their own API). Open is safe on localhost and dangerous on a public URL,
+    which is why Settings.from_env() refuses ADMIN_AUTH=off anywhere non-local,
+    startup logs a warning, and /api/health reports `admin_auth` as "off".
     """
-    if not settings.admin_phone:
+    if not settings.admin_auth_enabled:
         return
 
     token = auth.bearer_from_header(authorization) or (x_admin_token or "").strip()
@@ -107,7 +110,7 @@ def require_admin_stream(
     string of every admin route, which is more places for it to land in
     server logs and browser history than the one route that actually needs it.
     """
-    if not settings.admin_phone:
+    if not settings.admin_auth_enabled:
         return
 
     candidate = (

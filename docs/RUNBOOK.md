@@ -166,6 +166,7 @@ Bright Data cache entries (Luma: 6h, SERP/profiles: 30d — see
 | `ENRICHMENT_BUDGET_CENTS` | no (default `500`) | hard spend ceiling per process, independent of the mandate |
 | `PUBLIC_BASE_URL` | messaging | public HTTPS base for webhook callbacks (ngrok/cloudflared in dev) |
 | `ADMIN_PHONE` | **before any public URL** | turns on the passcode gate; the code is texted here. Blank = API is open |
+| `ADMIN_AUTH` | no (default `auto`) | `auto` \| `on` \| `off`. Overrides the rule above; `off` refuses to start anywhere non-local |
 | `ADMIN_SESSION_TTL_HOURS` | no (default `24`) | how long an admin session lasts |
 
 ### Operator auth
@@ -201,16 +202,41 @@ localhost — with no phone there is no way to deliver a passcode, so enforcing
 it would lock you out of your own API — but startup prints a warning and
 `/api/health` reports `"admin_auth": "off"`.
 
-> ⚠️ The Next.js frontend in `invite_viewer/` does **not** yet send an admin
-> token. With `ADMIN_PHONE` set, the backend returns 401 to it. Either leave
-> the gate off while working on the frontend locally, or add the token to
-> `lib/api.ts` — the backend accepts `Authorization: Bearer <token>` or
-> `X-Admin-Token: <token>`.
+The frontend handles all of this: `invite_viewer/app/login/page.tsx` requests
+and exchanges the passcode, `lib/api.ts` sends the resulting token on every
+call (`Authorization: Bearer <token>`; `X-Admin-Token` is also accepted), and
+a 401 clears the stored token and shows a "Sign in required" prompt.
+
+#### Turning the gate off for local development
+
+`.env` normally has `ADMIN_PHONE` set, which means every local run wants a
+passcode texted over Linq. `ADMIN_AUTH=off` skips it:
+
+```bash
+./scripts/dev-open.sh          # backend on :8000, gate off, --reload
+```
+
+That is the whole toggle — the plain `uvicorn` command keeps its usual
+meaning, so there is never any doubt about which mode is running. The
+equivalent by hand:
+
+```bash
+ADMIN_AUTH=off PUBLIC_BASE_URL=http://localhost:8000 \
+  .venv/bin/uvicorn invite_finder.api.app:app --port 8000 --reload
+```
+
+`PUBLIC_BASE_URL` has to come along because `.env` points it at a tunnel, and
+**`ADMIN_AUTH=off` refuses to start when the service is not local** — the
+hostname must be localhost/127.0.0.1/::1 *and* `RENDER_EXTERNAL_URL` must be
+absent. Both checks exist so the switch cannot travel: a tunnel forwards to
+localhost but is a public address, which is the exact case the gate is for.
+Startup prints which mode it is in, and `/api/health` reports
+`"admin_auth": "off"`.
 
 ## Testing
 
 ```bash
-.venv/bin/pytest                      # backend: 143 tests, no network/LLM calls
+.venv/bin/pytest                      # backend: 156 tests, no network/LLM calls
 cd invite_viewer && npm run lint && npm run build   # frontend
 ```
 

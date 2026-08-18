@@ -16,6 +16,7 @@ import os
 
 for _key in (
     "ADMIN_PHONE",
+    "ADMIN_AUTH",
     "LINQ_API_KEY",
     "LINQ_WEBHOOK_SECRET",
     "STRIPE_PAYMENT_LINK",

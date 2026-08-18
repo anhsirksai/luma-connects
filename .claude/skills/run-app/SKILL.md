@@ -13,8 +13,11 @@ Use this to see the app working, or to test frontend/backend changes,
 without touching any paid API.
 
 ```bash
-# terminal 1 — backend
-INVITE_OFFLINE=1 BRIGHTDATA_API_KEY=x BRIGHTDATA_SERP_ZONE=x BRIGHTDATA_UNLOCKER_ZONE=x \
+# terminal 1 — backend. ADMIN_AUTH=off skips the passcode gate that .env's
+# ADMIN_PHONE would otherwise turn on; PUBLIC_BASE_URL must come with it,
+# because ADMIN_AUTH=off refuses to start on .env's tunnel URL.
+INVITE_OFFLINE=1 ADMIN_AUTH=off PUBLIC_BASE_URL=http://localhost:8000 \
+  BRIGHTDATA_API_KEY=x BRIGHTDATA_SERP_ZONE=x BRIGHTDATA_UNLOCKER_ZONE=x \
   .venv/bin/uvicorn invite_finder.api.app:app --port 8000 --reload
 
 # terminal 2 — frontend
@@ -62,7 +65,10 @@ calls.
 ## Live mode (spends Bright Data + OpenAI credits)
 
 ```bash
-# terminal 1 — backend; Settings.from_env() loads .env automatically
+# terminal 1 — backend; Settings.from_env() loads .env automatically.
+# This form honours .env's ADMIN_PHONE, so the passcode gate is ON and the
+# frontend will ask you to log in at /login. For a local run without it:
+#   ./scripts/dev-open.sh
 .venv/bin/uvicorn invite_finder.api.app:app --port 8000 --reload
 
 # terminal 2 — frontend
@@ -78,7 +84,9 @@ server, never re-issues a request that's already been made.
 
 ```bash
 curl -s localhost:8000/api/health
-# {"status":"ok","db":"ok","offline":false}
+# {"status":"ok","db":"ok","offline":false,"admin_auth":"off"}
+# admin_auth tells you which mode you're in: "on" means every other curl
+# below needs -H "Authorization: Bearer <token>" from /api/auth/verify.
 
 curl -s -X POST localhost:8000/api/events -H 'content-type: application/json' \
   -d '{"luma_url":"https://luma.com/<slug>"}'

@@ -51,7 +51,17 @@ def create_app() -> FastAPI:
         finally:
             conn.close()
 
-        if not settings.admin_phone:
+        if settings.admin_auth_mode == "off":
+            # Deliberate, and Settings.from_env() has already refused to let
+            # this happen anywhere that is not localhost. Still said out loud,
+            # so which mode is running is never in doubt.
+            print(
+                "invite-api: admin passcode gate is OFF (ADMIN_AUTH=off). Local "
+                "development only — from_env() refuses this on any non-local "
+                "PUBLIC_BASE_URL, and on Render regardless.",
+                flush=True,
+            )
+        elif not settings.admin_auth_enabled:
             print(
                 "invite-api: WARNING — ADMIN_PHONE is unset, so the data routes are "
                 "OPEN to anyone who can reach this URL, and they serve names, "
@@ -148,7 +158,7 @@ def create_app() -> FastAPI:
             offline=settings.invite_offline,
             unfulfilled_payments_cents=unfulfilled_cents,
             unfulfilled_payments_count=unfulfilled_count,
-            admin_auth="on" if settings.admin_phone else "off",
+            admin_auth="on" if settings.admin_auth_enabled else "off",
         )
 
     return app
